@@ -55,6 +55,9 @@ let settings = {
     directionalIntensity: 5.0,
     lightColor: 0xffffff,
     ambientOcclusion: false,
+    aoRadius: 12,
+    aoMinDistance: 0.002,
+    aoMaxDistance: 0.12,
     gridSize: 64,
     gridColor1: 0x2a3f8a,
     gridColor2: 0x1a2a5a,
@@ -68,6 +71,9 @@ let directionalLight;
 let ambientLight;
 let fog;
 let autoSaveInterval;
+let composer = null;
+let renderPass = null;
+let ssaoPass = null;
 let placementRotation = 0;
 let isTransforming = false;
 
@@ -101,6 +107,7 @@ let transformSnapValues = {
 
 // Layer Management
 let layerMap = new Map();
+let detailLayerVisible = true;
 
 const GRID_SIZE = 64;
 const CELL_SIZE = 4;
@@ -522,6 +529,19 @@ function worldToCell(worldX, worldZ)
     };
 }
 
+function getViewportDimensions()
+{
+    const leftWidth = document.getElementById('sidebar')?.offsetWidth || 0;
+    const rightWidth = document.getElementById('layerSidebar')?.offsetWidth || 0;
+    const bottomHeight = document.getElementById('asset-browser')?.offsetHeight || 0;
+    const toolbarHeight = document.getElementById('toolbar')?.offsetHeight || 50;
+
+    return {
+        width: window.innerWidth - leftWidth - rightWidth,
+        height: window.innerHeight - toolbarHeight - bottomHeight
+    };
+}
+
 function init()
 {
     scene = new THREE.Scene();
@@ -549,11 +569,7 @@ function init()
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.AgXToneMapping;
     renderer.toneMappingExposure = 1;
-    const sidebarWidth = 250; // Match your CSS width
-    const bottomHeight = 180; // Match your CSS height
-    const width = window.innerWidth - sidebarWidth;
-    const height = window.innerHeight - 50 - bottomHeight; // 50 is toolbar
-
+    const { width, height } = getViewportDimensions();
     renderer.setSize(width, height);
     document.getElementById('viewport').appendChild(renderer.domElement);
 
@@ -602,6 +618,7 @@ function init()
     mouse = new THREE.Vector2();
 
     loadSettingsFromStorage();
+    setupPostProcessing();
     applySettings();
     setupControls();
     setupEventListeners();
@@ -831,7 +848,60 @@ function animate()
     }
 
     // Render
-    renderer.render(scene, camera);
+    if (settings.ambientOcclusion && composer && ssaoPass)
+    {
+        composer.render();
+    }
+    else
+    {
+        renderer.render(scene, camera);
+    }
+}
+
+function setupPostProcessing()
+{
+    const viewport = document.getElementById('viewport');
+    const width = viewport ? viewport.clientWidth : renderer.domElement.width;
+    const height = viewport ? viewport.clientHeight : renderer.domElement.height;
+
+    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SSAOPass || !THREE.SSAOShader || !THREE.SimplexNoise)
+    {
+        console.warn("SSAO dependencies are missing. Ambient Occlusion will be disabled.");
+        settings.ambientOcclusion = false;
+        return;
+    }
+
+    composer = new THREE.EffectComposer(renderer);
+    renderPass = new THREE.RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    try
+    {
+        ssaoPass = new THREE.SSAOPass(scene, camera, width, height);
+        applyAmbientOcclusionSettings();
+        composer.addPass(ssaoPass);
+    }
+    catch (error)
+    {
+        console.warn("Failed to initialize SSAO pass. Ambient Occlusion will be disabled.", error);
+        ssaoPass = null;
+        settings.ambientOcclusion = false;
+    }
+}
+
+function applyAmbientOcclusionSettings()
+{
+    if (!ssaoPass) return;
+
+    if (settings.aoMaxDistance <= settings.aoMinDistance)
+    {
+        settings.aoMaxDistance = settings.aoMinDistance + 0.01;
+    }
+
+    ssaoPass.enabled = settings.ambientOcclusion;
+    ssaoPass.kernelRadius = settings.aoRadius;
+    ssaoPass.minDistance = settings.aoMinDistance;
+    ssaoPass.maxDistance = settings.aoMaxDistance;
 }
 
 function updateCompassPosition()
@@ -1029,6 +1099,18 @@ function setupEventListeners()
                 {
                     valueSpan.textContent = e.target.value + 's';
                 }
+                else if (e.target.id === 'aoMinDistance')
+                {
+                    valueSpan.textContent = parseFloat(e.target.value).toFixed(3);
+                }
+                else if (e.target.id === 'aoMaxDistance')
+                {
+                    valueSpan.textContent = parseFloat(e.target.value).toFixed(2);
+                }
+                else if (e.target.id === 'aoRadius')
+                {
+                    valueSpan.textContent = parseInt(e.target.value);
+                }
                 else
                 {
                     valueSpan.textContent = parseFloat(e.target.value).toFixed(1);
@@ -1050,6 +1132,9 @@ function setupEventListeners()
         settings.directionalIntensity = parseFloat(document.getElementById('directionalIntensity').value);
         settings.lightColor = parseInt(document.getElementById('lightColor').value.replace('#', '0x'));
         settings.ambientOcclusion = document.getElementById('enableAO').checked;
+        settings.aoRadius = parseInt(document.getElementById('aoRadius').value);
+        settings.aoMinDistance = parseFloat(document.getElementById('aoMinDistance').value);
+        settings.aoMaxDistance = parseFloat(document.getElementById('aoMaxDistance').value);
         settings.gridSize = parseInt(document.getElementById('gridSize').value);
         settings.gridColor1 = parseInt(document.getElementById('gridColor1').value.replace('#', '0x'));
         settings.gridColor2 = parseInt(document.getElementById('gridColor2').value.replace('#', '0x'));
@@ -1496,6 +1581,39 @@ function updateLayerPanel()
 
     layerListEl.innerHTML = '';
 
+    const detailLi = document.createElement('li');
+    detailLi.className = 'layer-item detail-layer-item';
+
+    const detailIconButton = document.createElement('button');
+    detailIconButton.className = 'layer-action-button';
+    detailIconButton.innerHTML = '<i data-feather="layers"></i>';
+    detailIconButton.title = 'Dedicated Detail Layer';
+    detailIconButton.disabled = true;
+    detailLi.appendChild(detailIconButton);
+
+    const detailName = document.createElement('span');
+    detailName.className = 'layer-name';
+    detailName.innerText = 'Details Layer';
+    detailLi.appendChild(detailName);
+
+    const detailActions = document.createElement('div');
+    detailActions.className = 'layer-actions';
+
+    const detailVisibilityButton = document.createElement('button');
+    detailVisibilityButton.className = 'layer-action-button';
+    detailVisibilityButton.innerHTML = detailLayerVisible ? '<i data-feather="eye"></i>' : '<i data-feather="eye-off"></i>';
+    detailVisibilityButton.title = detailLayerVisible ? 'Hide details' : 'Show details';
+    detailVisibilityButton.onclick = (e) =>
+    {
+        e.stopPropagation();
+        toggleDetailLayerVisibility(!detailLayerVisible);
+        updateLayerPanel();
+    };
+    detailActions.appendChild(detailVisibilityButton);
+
+    detailLi.appendChild(detailActions);
+    layerListEl.appendChild(detailLi);
+
     const sortedKeys = Array.from(layerMap.keys()).sort((a, b) => a - b);
 
     sortedKeys.forEach(num =>
@@ -1650,7 +1768,7 @@ function deleteLayer()
     let hasTiles = false;
     for (let [key, mesh] of placedTiles)
     {
-        if (mesh.userData.position.layer === layerNumToDelete)
+        if (!mesh.userData.isDetail && mesh.userData.position.layer === layerNumToDelete)
         {
             hasTiles = true;
             break;
@@ -1662,7 +1780,7 @@ function deleteLayer()
     const toRemove = [];
     placedTiles.forEach((mesh, key) =>
     {
-        if (mesh.userData.position.layer === layerNumToDelete)
+        if (!mesh.userData.isDetail && mesh.userData.position.layer === layerNumToDelete)
         {
             if (!toRemove.includes(mesh)) toRemove.push(mesh);
         }
@@ -1699,11 +1817,26 @@ function toggleLayerVisibility(layerNum, isVisible)
 {
     scene.traverse(object =>
     {
-        if (object.userData && object.userData.position && object.userData.position.layer === layerNum)
+        if (object.userData && object.userData.position && !object.userData.isDetail && object.userData.position.layer === layerNum)
         {
             object.visible = isVisible;
         }
     });
+}
+
+function toggleDetailLayerVisibility(isVisible)
+{
+    detailLayerVisible = isVisible;
+
+    detailMeshes.forEach(mesh =>
+    {
+        if (mesh) mesh.visible = isVisible;
+    });
+
+    if (selectedPlacedTile && selectedPlacedTile.userData?.isDetail && !isVisible)
+    {
+        deselectTile();
+    }
 }
 
 // --- Camera & Walk Mode ---
@@ -1820,6 +1953,7 @@ function getLayoutData()
     const exportData = {
         tiles: [],
         layers: [],
+        detailLayerVisible,
         version: "1.1"
     };
 
@@ -2266,7 +2400,7 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
             transparent: true,
             opacity: settings.ghostOpacity,
             side: THREE.DoubleSide,
-            wireframe: true
+            emissive: new THREE.Color(tileToUse.color || '#4fc3f7').multiplyScalar(0.2)
         });
         const geometry = new THREE.BoxGeometry(tileWidth, 1.0, tileHeight);
         previewGhost = new THREE.Mesh(geometry, ghostMaterial);
@@ -2287,6 +2421,7 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
 
     const valid = !checkCollision(cell.x, cell.z, currentLayer, effW, effH, excludeMesh);
     previewGhost.material.color.setHex(valid ? (tileToUse.color ? new THREE.Color(tileToUse.color).getHex() : 0x4fc3f7) : 0xff0000);
+    updatePreviewGhostAppearance();
 }
 
 function updateDetailPreview(detailData, hitPoint)
@@ -2662,6 +2797,7 @@ function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
                 color: new THREE.Color(tileToUse.color || '#4fc3f7'),
                 transparent: true,
                 opacity: settings.ghostOpacity, // Use setting
+                side: THREE.DoubleSide,
                 emissive: new THREE.Color(tileToUse.color || '#4fc3f7').multiplyScalar(0.2)
             });
             const geometry = new THREE.BoxGeometry(tileWidth, 1.0, tileHeight);
@@ -2685,12 +2821,29 @@ function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
 
         const valid = !checkCollision(cell.x, cell.z, currentLayer, effW, effH, excludeMesh);
         previewGhost.material.color.setHex(valid ? (tileToUse.color ? new THREE.Color(tileToUse.color).getHex() : 0x4fc3f7) : 0xff0000);
+        updatePreviewGhostAppearance();
 
     }
     else
     {
         removePreviewGhost();
     }
+}
+
+function updatePreviewGhostAppearance()
+{
+    if (!previewGhost || !previewGhost.material) return;
+
+    previewGhost.material.transparent = true;
+    previewGhost.material.opacity = settings.ghostOpacity;
+    previewGhost.material.wireframe = false;
+
+    if (previewGhost.material.emissive)
+    {
+        previewGhost.material.emissive.copy(previewGhost.material.color).multiplyScalar(0.2);
+    }
+
+    previewGhost.material.needsUpdate = true;
 }
 
 function removePreviewGhost()
@@ -2963,17 +3116,14 @@ function updateCameraPosition()
 
 function onWindowResize()
 {
-    const sidebarWidth = 250;
-    const bottomPanel = document.getElementById('asset-browser');
-    const bottomHeight = bottomPanel ? bottomPanel.offsetHeight : 0;
-    const toolbarHeight = 50;
-
-    const width = window.innerWidth - sidebarWidth;
-    const height = window.innerHeight - toolbarHeight - bottomHeight;
+    const { width, height } = getViewportDimensions();
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+
+    if (composer) composer.setSize(width, height);
+    if (ssaoPass) ssaoPass.setSize(width, height);
 
     // Update transform controls camera
     if (transformControls)
@@ -3072,6 +3222,8 @@ async function prepareDetailMesh(worldX, worldZ, layer, detailData, rotation = 0
         console.log("Detail mesh prepared - Original scale:", mesh.userData.originalScale);
         console.log("Detail mesh prepared - Scale multiplier:", mesh.userData.scale);
         console.log("Detail mesh prepared - Final scale:", mesh.scale);
+
+        mesh.visible = detailLayerVisible;
 
         return mesh;
     }
@@ -3861,6 +4013,7 @@ function saveLayout()
         version: '2.1',
         gridSize: GRID_SIZE,
         layers: maxLayer,
+        detailLayerVisible,
         tiles: [],
         details: [] // Use 'details' not 'detailMeshes'
     };
@@ -4007,6 +4160,8 @@ async function loadLayout(layoutData, skipConfirm = false)
         updateModeIndicator();
     }
 
+    detailLayerVisible = layoutData.detailLayerVisible !== false;
+
     let loadedTileCount = 0;
     let loadedDetailCount = 0;
     let missingCount = 0;
@@ -4139,6 +4294,9 @@ async function loadLayout(layoutData, skipConfirm = false)
             }
         }
     }
+
+    toggleDetailLayerVisibility(detailLayerVisible);
+    updateLayerPanel();
 
     document.getElementById('loading').style.display = 'none';
 
@@ -4436,7 +4594,7 @@ async function exportAsMesh()
         for (const [key, rootMesh] of placedTiles)
         {
             if (processedMeshes.has(rootMesh.uuid)) continue;
-            if (!visibleLayers.has(rootMesh.userData.position.layer)) continue;
+            if (rootMesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(rootMesh.userData.position.layer)) continue;
 
             processedMeshes.add(rootMesh.uuid);
 
@@ -4733,6 +4891,12 @@ function loadSettingsToUI()
     document.getElementById('directionalValue').textContent = settings.directionalIntensity.toFixed(1);
     document.getElementById('lightColor').value = '#' + settings.lightColor.toString(16).padStart(6, '0');
     document.getElementById('enableAO').checked = settings.ambientOcclusion;
+    document.getElementById('aoRadius').value = settings.aoRadius;
+    document.getElementById('aoRadiusValue').textContent = settings.aoRadius;
+    document.getElementById('aoMinDistance').value = settings.aoMinDistance;
+    document.getElementById('aoMinDistanceValue').textContent = settings.aoMinDistance.toFixed(3);
+    document.getElementById('aoMaxDistance').value = settings.aoMaxDistance;
+    document.getElementById('aoMaxDistanceValue').textContent = settings.aoMaxDistance.toFixed(2);
 
     // Grid & View
     document.getElementById('gridSize').value = settings.gridSize;
@@ -4816,8 +4980,19 @@ function applySettings()
         directionalLight.color.setHex(settings.lightColor);
     }
 
-    // Ambient Occlusion (simplified - would need SSAO pass for full effect)
-    // This is a placeholder - in a real implementation you'd use SSAO pass
+    // Ambient Occlusion
+    if (settings.ambientOcclusion && !ssaoPass)
+    {
+        showNotification("Ambient Occlusion unavailable: SSAO pass failed to initialize", "warning");
+        settings.ambientOcclusion = false;
+        const aoToggle = document.getElementById('enableAO');
+        if (aoToggle) aoToggle.checked = false;
+    }
+
+    if (ssaoPass)
+    {
+        applyAmbientOcclusionSettings();
+    }
 
     // Grid & View
     if (gridHelper)
@@ -4831,6 +5006,11 @@ function applySettings()
     scene.background.setHex(settings.backgroundColor);
     camera.fov = settings.fov;
     camera.updateProjectionMatrix();
+
+    if (previewGhost)
+    {
+        updatePreviewGhostAppearance();
+    }
 
     // Editor settings (some are applied elsewhere)
     MAX_HISTORY = settings.historySize;
@@ -4897,7 +5077,7 @@ function exportForSecondLife()
         const tileData = mesh.userData.tileData;
         const pos = mesh.userData.position;
         if (!tileData || !pos) return;
-        if (!visibleLayers.has(pos.layer || 1)) return;
+        if (mesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(pos.layer || 1)) return;
 
         const rot = mesh.rotation.y || 0;
 
@@ -5010,6 +5190,9 @@ function resetSettingsToDefaults()
         directionalIntensity: 5.0,
         lightColor: 0xffffff,
         ambientOcclusion: false,
+        aoRadius: 12,
+        aoMinDistance: 0.002,
+        aoMaxDistance: 0.12,
         gridSize: 64,
         gridColor1: 0x2a3f8a,
         gridColor2: 0x1a2a5a,

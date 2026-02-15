@@ -39,6 +39,23 @@ body {
     z-index: 10;
 }
 
+#layerSidebar {
+    width: 250px;
+    background: rgba(10, 15, 35, 0.7);
+    border-left: 1px solid rgba(100, 150, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+}
+
+#sidebar > .section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 #viewport {
     flex-grow: 1;
     position: relative;
@@ -128,6 +145,7 @@ h3 {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .tool-button:hover:not(:disabled) {
@@ -237,7 +255,7 @@ button.danger:hover {
 
 /* --- Layer Panel (Upgraded Styling) --- */
 .layer-panel {
-    margin-top: 12px;
+    margin-top: 0;
     background: rgba(15, 30, 60, 0.4);
     border: 1px solid rgba(100, 150, 255, 0.1);
     border-radius: 8px;
@@ -688,37 +706,6 @@ input:checked + .slider:before {
 }
 
 
-#asset-browser {
-    height: 220px; /* Increased from 180px for more space */
-    background: rgba(10, 15, 35, 0.95);
-    border-top: 1px solid rgba(100, 150, 255, 0.2);
-    display: flex;
-    flex-direction: column;
-    z-index: 20;
-    flex-shrink: 0;
-}
-
-.tile-grid {
-    display: flex;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 10px;
-    gap: 10px;
-    height: calc(100% - 40px - 35px); /* Account for tabs and header */
-    align-items: flex-start;
-}
-
-.tile-grid {
-    display: flex;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 10px;
-    gap: 10px;
-    height: 100%;
-    align-items: flex-start;
-}
 /* Prop-specific styles */
 .prop-controls {
     display: none;
@@ -1088,7 +1075,9 @@ input:checked + .slider:before {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 200px;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
 }
 
@@ -1125,13 +1114,6 @@ input:checked + .slider:before {
 .mesh-indicator {
     margin-left: 4px;
     font-size: 0.8em;
-}
-
-/* Transform Controls UI */
-.tool-button.active {
-    background-color: #4fc3f7;
-    color: #0c1445;
-    border-color: #4fc3f7;
 }
 
 /* Transform Gizmo Overrides */
@@ -1175,18 +1157,6 @@ input:checked + .slider:before {
     background: rgba(100, 150, 255, 0.1);
     margin: 5px 0;
 }
-/* Mode and Transform Button Styles */
-.tool-group.transform-group {
-    transition: all 0.3s ease;
-}
-
-
-.tool-button.active[data-transform] {
-    background-color: #f7a84f;
-    color: #0c1445;
-    border-color: #f7a84f;
-}
-
 /* Mode and Transform Button Styles */
 .tool-group.transform-group {
     transition: all 0.3s ease;
