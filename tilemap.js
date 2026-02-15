@@ -851,7 +851,7 @@ function setupPostProcessing()
     const width = viewport ? viewport.clientWidth : renderer.domElement.width;
     const height = viewport ? viewport.clientHeight : renderer.domElement.height;
 
-    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SSAOPass || !THREE.SimplexNoise)
+    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SSAOPass || !THREE.SSAOShader || !THREE.SimplexNoise)
     {
         console.warn("SSAO dependencies are missing. Ambient Occlusion will be disabled.");
         settings.ambientOcclusion = false;
