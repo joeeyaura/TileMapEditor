@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>3D Tile Editor</title>
+      <link rel="stylesheet" href="tilemap.css">
+      <script src="https://unpkg.com/feather-icons"></script>
+   </head>
+   <body>
+     <div id="toolbar">
+  <div class="toolbar-left" style="display: flex; align-items: center; gap: 15px;">
+    <div class="tool-group">
+      <button class="tool-button" id="clearGrid" title="New/Clear Map">
+        <i data-feather="file-plus"></i>
+      </button>
+      <button class="tool-button" id="loadLayout" title="Open Layout">
+        <i data-feather="folder"></i>
+      </button>
+      <button class="tool-button" id="saveLayout" title="Save Layout">
+        <i data-feather="save"></i>
+      </button>
+      <button class="tool-button" id="exportMesh" title="Export as 3D Model (GLB)">
+        <i data-feather="download"></i>
+      </button>
+      <button class="tool-button" id="exportText" title="Export as Text File">
+        <i data-feather="file-text"></i>
+      </button>
+      <input type="file" id="layoutInput" accept=".json" style="display: none;">
+    </div>
+    <span class="separator"></span>
+    
+    <div class="tool-group">
+      <button class="tool-button active" id="modeTiles" data-mode="tiles" title="Tile Mode - Work with grid-snapped tiles">
+        <i data-feather="grid"></i>
+      </button>
+      <button class="tool-button" id="modeDetails" data-mode="details" title="Detail Mode - Work with free-form details">
+        <i data-feather="zap"></i>
+      </button>
+    </div>
+    
+    <!-- Transform Controls (only visible in Detail mode) -->
+    <div class="tool-group transform-group" style="display: none;">
+      <span class="separator"></span>
+      <button class="tool-button active" id="transformMove" data-transform="translate" title="Move (W)">
+        <i data-feather="move"></i>
+      </button>
+      <button class="tool-button" id="transformRotate" data-transform="rotate" title="Rotate (E)">
+        <i data-feather="rotate-cw"></i>
+      </button>
+      <button class="tool-button" id="transformScale" data-transform="scale" title="Scale (R)">
+        <i data-feather="maximize"></i>
+      </button>
+      <button class="tool-button" id="toggleSnap" title="Toggle Snap (S)">
+        <i data-feather="grid"></i>
+      </button>
+      <button class="tool-button" id="resetTransform" title="Reset Transform to Default">
+        <i data-feather="refresh-cw"></i>
+      </button>
+    </div>
+    
+    <button class="tool-button" id="toolSelect" data-mode="select" title="Select Tool (M)">
+      <i data-feather="mouse-pointer"></i>
+    </button>
+    <button class="tool-button active" id="toolPlace" data-mode="place" title="Place/Paint Tool (P)">
+      <i data-feather="edit"></i>
+    </button>
+    <button class="tool-button" id="toolErase" data-mode="erase" title="Erase Tool (E)">
+      <i data-feather="trash-2"></i>
+    </button>
+    <span class="separator"></span>
+    <button class="tool-button" id="toggleGrid" title="Toggle Grid (G)">
+      <i data-feather="grid"></i>
+    </button>
+    <span class="separator"></span>
+    <button class="tool-button" id="openSettings" title="Settings">
+      <i data-feather="settings"></i>
+    </button>
+    <span class="separator"></span>
+    <button class="tool-button" id="undoButton" title="Undo (Ctrl+Z)" disabled>
+      <i data-feather="corner-up-left"></i>
+    </button>
+    <button class="tool-button" id="redoButton" title="Redo (Ctrl+Y)" disabled>
+      <i data-feather="corner-up-right"></i>
+    </button>
+  </div>
+  
+  <div class="status-indicator">
+    <span id="currentStatus">Mode: Place | Layer: 1</span>
+  </div>
+  
+  <div class="tool-group right-align">
+    <button class="tool-button" id="resetCamera" title="Reset Camera">
+      <i data-feather="home"></i>
+    </button>
+    <button class="tool-button" id="walkMode" title="Walk-through camera (W)">
+      <i data-feather="navigation"></i>
+    </button>
+    <button class="tool-button" id="topView" title="Top View">
+      <i data-feather="arrow-down"></i>
+    </button>
+    <button class="tool-button" id="isoView" title="Isometric View">
+      <i data-feather="maximize-2"></i>
+    </button>
+  </div>
+</div>
+         <!-- Add this to the right-align section of the toolbar -->
+      </div>
+      <div id="container">
+         <div id="main-split">
+            <div id="sidebar">
+               <div class="section">
+                  <div class="pack-type-tabs">
+                     <button class="pack-type-tab active" id="tilePacksTab" data-type="tiles">
+                     <i data-feather="grid"></i> Tiles
+                     </button>
+                     <button class="pack-type-tab" id="detailPacksTab" data-type="details">
+                     <i data-feather="zap"></i> Details
+                     </button>
+                  </div>
+                  <div id="packTabs" class="pack-tabs vertical-list"></div>
+               </div>
+               <div class="section layers-section">
+                  <div class="layer-panel">
+                     <div class="layer-header">
+                        <span>Layers (<span id="currentLayerDisplay">1</span>)</span>
+                        <div class="layer-controls">
+                           <button id="addLayer"><i data-feather="plus"></i></button>
+                           <button id="deleteLayer" disabled><i data-feather="x"></i></button>
+                        </div>
+                     </div>
+                     <ul id="layerList" class="layer-list"></ul>
+                  </div>
+               </div>
+            </div>
+            <div id="viewport">
+               <div id="loading" style="display: none;">
+                  <div class="spinner"></div>
+                  <div>Loading...</div>
+               </div>
+            </div>
+         </div>
+         <div id="asset-browser">
+            <div class="tile-grid" id="tileGrid"></div>
+         </div>
+      </div>
+      <script>
+         feather.replace();
+      </script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+      <!--<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/FontLoader.js"></script> -->
+      <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <!--  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/OBJLoader.js"></script> -->
+    <!--  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/exporters/GLTFExporter.js"></script>  -->
+     <!-- <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script> -->
+      <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/TransformControls.js"></script>
+      <script src="tilemap.js?t=${Date.now()}"></script>
+      <!-- Settings Window -->
+      <div id="settingsWindow" style="display: none;">
+         <div class="settings-overlay" onclick="closeSettings()"></div>
+         <div class="settings-panel">
+            <div class="settings-header">
+               <h3>
+                  <i data-feather="settings"></i> Settings
+               </h3>
+               <button class="settings-close" onclick="closeSettings()">
+               <i data-feather="x"></i>
+               </button>
+            </div>
+            <div class="settings-content">
+               <div class="settings-group">
+                  <h4>
+                     <i data-feather="sun"></i> Rendering
+                  </h4>
+                  <div class="setting-item">
+                     <label for="toneMapper">Tone Mapping</label>
+                     <select id="toneMapper" class="settings-select">
+                        <option value="0">No Tone Mapping</option>
+                        <option value="1">Linear</option>
+                        <option value="2">Reinhard</option>
+                        <option value="3">Cineon</option>
+                        <option value="4">ACESFilmic</option>
+                        <option value="5" selected>AgX</option>
+                        <option value="6">Neutral</option>
+                        <option value="7">Custom</option>
+                     </select>
+                  </div>
+                  <div class="setting-item">
+                     <label for="toneExposure">Exposure</label>
+                     <input type="range" id="toneExposure" min="0.1" max="3" step="0.1" value="1">
+                     <span class="setting-value" id="exposureValue">1.0</span>
+                  </div>
+                  <div class="setting-item">
+                     <label for="enableShadows">Shadows</label>
+                     <label class="switch">
+                     <input type="checkbox" id="enableShadows" checked>
+                     <span class="slider"></span>
+                     </label>
+                  </div>
+                  <div class="setting-item">
+                     <label for="shadowQuality">Shadow Quality</label>
+                     <select id="shadowQuality" class="settings-select">
+                        <option value="512">Low (512)</option>
+                        <option value="1024">Medium (1024)</option>
+                        <option value="2048" selected>High (2048)</option>
+                        <option value="4096">Ultra (4096)</option>
+                     </select>
+                  </div>
+                  <div class="setting-item">
+                     <label for="enableFog">Fog</label>
+                     <label class="switch">
+                     <input type="checkbox" id="enableFog">
+                     <span class="slider"></span>
+                     </label>
+                  </div>
+               </div>
+               <div class="settings-group">
+                  <h4>
+                     <i data-feather="zap"></i> Lighting
+                  </h4>
+                  <div class="setting-item">
+                     <label for="ambientIntensity">Ambient Light</label>
+                     <input type="range" id="ambientIntensity" min="0" max="2" step="0.1" value="1">
+                     <span class="setting-value" id="ambientValue">1.0</span>
+                  </div>
+                  <div class="setting-item">
+                     <label for="directionalIntensity">Directional Light</label>
+                     <input type="range" id="directionalIntensity" min="0" max="5" step="0.1" value="5">
+                     <span class="setting-value" id="directionalValue">5.0</span>
+                  </div>
+                  <div class="setting-item">
+                     <label for="lightColor">Light Color</label>
+                     <input type="color" id="lightColor" value="#ffffff">
+                  </div>
+                  <div class="setting-item">
+                     <label for="enableAO">Ambient Occlusion</label>
+                     <label class="switch">
+                     <input type="checkbox" id="enableAO">
+                     <span class="slider"></span>
+                     </label>
+                  </div>
+               </div>
+               <div class="settings-group">
+                  <h4>
+                     <i data-feather="grid"></i> Grid & View
+                  </h4>
+                  <div class="setting-item">
+                     <label for="gridSize">Grid Size</label>
+                     <input type="range" id="gridSize" min="8" max="64" step="8" value="64">
+                     <span class="setting-value" id="gridSizeValue">64</span>
+                  </div>
+                  <div class="setting-item">
+                     <label for="gridColor1">Grid Color 1</label>
+                     <input type="color" id="gridColor1" value="#2a3f8a">
+                  </div>
+                  <div class="setting-item">
+                     <label for="gridColor2">Grid Color 2</label>
+                     <input type="color" id="gridColor2" value="#1a2a5a">
+                  </div>
+                  <div class="setting-item">
+                     <label for="backgroundColor">Background Color</label>
+                     <input type="color" id="backgroundColor" value="#0a0e27">
+                  </div>
+                  <div class="setting-item">
+                     <label for="fov">Field of View</label>
+                     <input type="range" id="fov" min="30" max="90" step="5" value="45">
+                     <span class="setting-value" id="fovValue">45°</span>
+                  </div>
+               </div>
+               <div class="settings-group">
+                  <h4>
+                     <i data-feather="edit-3"></i> Editor
+                  </h4>
+                  <div class="setting-item">
+                     <label for="ghostOpacity">Ghost Preview Opacity</label>
+                     <input type="range" id="ghostOpacity" min="0.1" max="0.8" step="0.05" value="0.4">
+                     <span class="setting-value" id="ghostValue">0.4</span>
+                  </div>
+                  <div class="setting-item">
+                     <label for="historySize">History Size</label>
+                     <input type="range" id="historySize" min="10" max="200" step="10" value="50">
+                     <span class="setting-value" id="historyValue">50</span>
+                  </div>
+                  <div class="setting-item">
+                     <label for="autosaveInterval">Auto-save (seconds)</label>
+                     <input type="range" id="autosaveInterval" min="10" max="300" step="10" value="30">
+                     <span class="setting-value" id="autosaveValue">30s</span>
+                  </div>
+               </div>
+               <div class="settings-actions">
+                  <button id="saveSettings" class="settings-button">
+                  <i data-feather="save"></i> Apply & Save </button>
+                  <button id="resetSettings" class="settings-button danger">
+                  <i data-feather="refresh-cw"></i> Reset Defaults </button>
+                  <button id="closeSettings" class="settings-button" onclick="closeSettings()">
+                  <i data-feather="x"></i> Cancel </button>
+               </div>
+            </div>
+         </div>
+      </div>
+   </body>
+</html>
