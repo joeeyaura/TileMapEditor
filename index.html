@@ -104,8 +104,6 @@
     </button>
   </div>
 </div>
-         <!-- Add this to the right-align section of the toolbar -->
-      </div>
       <div id="container">
          <div id="main-split">
             <div id="sidebar">
@@ -154,7 +152,11 @@
     <!--  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/exporters/GLTFExporter.js"></script>  -->
      <!-- <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script> -->
       <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/TransformControls.js"></script>
-      <script src="tilemap.js?t=${Date.now()}"></script>
+      <script>
+         const tilemapScript = document.createElement("script");
+         tilemapScript.src = `tilemap.js?t=${Date.now()}`;
+         document.body.appendChild(tilemapScript);
+      </script>
       <!-- Settings Window -->
       <div id="settingsWindow" style="display: none;">
          <div class="settings-overlay" onclick="closeSettings()"></div>
