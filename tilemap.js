@@ -529,6 +529,19 @@ function worldToCell(worldX, worldZ)
     };
 }
 
+function getViewportDimensions()
+{
+    const leftWidth = document.getElementById('sidebar')?.offsetWidth || 0;
+    const rightWidth = document.getElementById('layerSidebar')?.offsetWidth || 0;
+    const bottomHeight = document.getElementById('asset-browser')?.offsetHeight || 0;
+    const toolbarHeight = document.getElementById('toolbar')?.offsetHeight || 50;
+
+    return {
+        width: window.innerWidth - leftWidth - rightWidth,
+        height: window.innerHeight - toolbarHeight - bottomHeight
+    };
+}
+
 function init()
 {
     scene = new THREE.Scene();
@@ -556,11 +569,7 @@ function init()
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.AgXToneMapping;
     renderer.toneMappingExposure = 1;
-    const sidebarWidth = 250; // Match your CSS width
-    const bottomHeight = 180; // Match your CSS height
-    const width = window.innerWidth - sidebarWidth;
-    const height = window.innerHeight - 50 - bottomHeight; // 50 is toolbar
-
+    const { width, height } = getViewportDimensions();
     renderer.setSize(width, height);
     document.getElementById('viewport').appendChild(renderer.domElement);
 
@@ -3107,13 +3116,7 @@ function updateCameraPosition()
 
 function onWindowResize()
 {
-    const sidebarWidth = 250;
-    const bottomPanel = document.getElementById('asset-browser');
-    const bottomHeight = bottomPanel ? bottomPanel.offsetHeight : 0;
-    const toolbarHeight = 50;
-
-    const width = window.innerWidth - sidebarWidth;
-    const height = window.innerHeight - toolbarHeight - bottomHeight;
+    const { width, height } = getViewportDimensions();
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
