@@ -107,6 +107,7 @@ let transformSnapValues = {
 
 // Layer Management
 let layerMap = new Map();
+let detailLayerVisible = true;
 
 const GRID_SIZE = 64;
 const CELL_SIZE = 4;
@@ -1571,6 +1572,39 @@ function updateLayerPanel()
 
     layerListEl.innerHTML = '';
 
+    const detailLi = document.createElement('li');
+    detailLi.className = 'layer-item detail-layer-item';
+
+    const detailIconButton = document.createElement('button');
+    detailIconButton.className = 'layer-action-button';
+    detailIconButton.innerHTML = '<i data-feather="layers"></i>';
+    detailIconButton.title = 'Dedicated Detail Layer';
+    detailIconButton.disabled = true;
+    detailLi.appendChild(detailIconButton);
+
+    const detailName = document.createElement('span');
+    detailName.className = 'layer-name';
+    detailName.innerText = 'Details Layer';
+    detailLi.appendChild(detailName);
+
+    const detailActions = document.createElement('div');
+    detailActions.className = 'layer-actions';
+
+    const detailVisibilityButton = document.createElement('button');
+    detailVisibilityButton.className = 'layer-action-button';
+    detailVisibilityButton.innerHTML = detailLayerVisible ? '<i data-feather="eye"></i>' : '<i data-feather="eye-off"></i>';
+    detailVisibilityButton.title = detailLayerVisible ? 'Hide details' : 'Show details';
+    detailVisibilityButton.onclick = (e) =>
+    {
+        e.stopPropagation();
+        toggleDetailLayerVisibility(!detailLayerVisible);
+        updateLayerPanel();
+    };
+    detailActions.appendChild(detailVisibilityButton);
+
+    detailLi.appendChild(detailActions);
+    layerListEl.appendChild(detailLi);
+
     const sortedKeys = Array.from(layerMap.keys()).sort((a, b) => a - b);
 
     sortedKeys.forEach(num =>
@@ -1725,7 +1759,7 @@ function deleteLayer()
     let hasTiles = false;
     for (let [key, mesh] of placedTiles)
     {
-        if (mesh.userData.position.layer === layerNumToDelete)
+        if (!mesh.userData.isDetail && mesh.userData.position.layer === layerNumToDelete)
         {
             hasTiles = true;
             break;
@@ -1737,7 +1771,7 @@ function deleteLayer()
     const toRemove = [];
     placedTiles.forEach((mesh, key) =>
     {
-        if (mesh.userData.position.layer === layerNumToDelete)
+        if (!mesh.userData.isDetail && mesh.userData.position.layer === layerNumToDelete)
         {
             if (!toRemove.includes(mesh)) toRemove.push(mesh);
         }
@@ -1774,11 +1808,26 @@ function toggleLayerVisibility(layerNum, isVisible)
 {
     scene.traverse(object =>
     {
-        if (object.userData && object.userData.position && object.userData.position.layer === layerNum)
+        if (object.userData && object.userData.position && !object.userData.isDetail && object.userData.position.layer === layerNum)
         {
             object.visible = isVisible;
         }
     });
+}
+
+function toggleDetailLayerVisibility(isVisible)
+{
+    detailLayerVisible = isVisible;
+
+    detailMeshes.forEach(mesh =>
+    {
+        if (mesh) mesh.visible = isVisible;
+    });
+
+    if (selectedPlacedTile && selectedPlacedTile.userData?.isDetail && !isVisible)
+    {
+        deselectTile();
+    }
 }
 
 // --- Camera & Walk Mode ---
@@ -1895,6 +1944,7 @@ function getLayoutData()
     const exportData = {
         tiles: [],
         layers: [],
+        detailLayerVisible,
         version: "1.1"
     };
 
@@ -3170,6 +3220,8 @@ async function prepareDetailMesh(worldX, worldZ, layer, detailData, rotation = 0
         console.log("Detail mesh prepared - Scale multiplier:", mesh.userData.scale);
         console.log("Detail mesh prepared - Final scale:", mesh.scale);
 
+        mesh.visible = detailLayerVisible;
+
         return mesh;
     }
     catch (error)
@@ -3958,6 +4010,7 @@ function saveLayout()
         version: '2.1',
         gridSize: GRID_SIZE,
         layers: maxLayer,
+        detailLayerVisible,
         tiles: [],
         details: [] // Use 'details' not 'detailMeshes'
     };
@@ -4104,6 +4157,8 @@ async function loadLayout(layoutData, skipConfirm = false)
         updateModeIndicator();
     }
 
+    detailLayerVisible = layoutData.detailLayerVisible !== false;
+
     let loadedTileCount = 0;
     let loadedDetailCount = 0;
     let missingCount = 0;
@@ -4236,6 +4291,9 @@ async function loadLayout(layoutData, skipConfirm = false)
             }
         }
     }
+
+    toggleDetailLayerVisibility(detailLayerVisible);
+    updateLayerPanel();
 
     document.getElementById('loading').style.display = 'none';
 
@@ -4533,7 +4591,7 @@ async function exportAsMesh()
         for (const [key, rootMesh] of placedTiles)
         {
             if (processedMeshes.has(rootMesh.uuid)) continue;
-            if (!visibleLayers.has(rootMesh.userData.position.layer)) continue;
+            if (rootMesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(rootMesh.userData.position.layer)) continue;
 
             processedMeshes.add(rootMesh.uuid);
 
@@ -5016,7 +5074,7 @@ function exportForSecondLife()
         const tileData = mesh.userData.tileData;
         const pos = mesh.userData.position;
         if (!tileData || !pos) return;
-        if (!visibleLayers.has(pos.layer || 1)) return;
+        if (mesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(pos.layer || 1)) return;
 
         const rot = mesh.rotation.y || 0;
 
