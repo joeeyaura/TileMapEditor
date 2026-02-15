@@ -851,7 +851,7 @@ function setupPostProcessing()
     const width = viewport ? viewport.clientWidth : renderer.domElement.width;
     const height = viewport ? viewport.clientHeight : renderer.domElement.height;
 
-    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SSAOPass)
+    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SSAOPass || !THREE.SimplexNoise)
     {
         console.warn("SSAO dependencies are missing. Ambient Occlusion will be disabled.");
         settings.ambientOcclusion = false;
@@ -862,12 +862,21 @@ function setupPostProcessing()
     renderPass = new THREE.RenderPass(scene, camera);
     composer.addPass(renderPass);
 
-    ssaoPass = new THREE.SSAOPass(scene, camera, width, height);
-    ssaoPass.kernelRadius = 12;
-    ssaoPass.minDistance = 0.002;
-    ssaoPass.maxDistance = 0.12;
-    ssaoPass.enabled = settings.ambientOcclusion;
-    composer.addPass(ssaoPass);
+    try
+    {
+        ssaoPass = new THREE.SSAOPass(scene, camera, width, height);
+        ssaoPass.kernelRadius = 12;
+        ssaoPass.minDistance = 0.002;
+        ssaoPass.maxDistance = 0.12;
+        ssaoPass.enabled = settings.ambientOcclusion;
+        composer.addPass(ssaoPass);
+    }
+    catch (error)
+    {
+        console.warn("Failed to initialize SSAO pass. Ambient Occlusion will be disabled.", error);
+        ssaoPass = null;
+        settings.ambientOcclusion = false;
+    }
 }
 
 function updateCompassPosition()
