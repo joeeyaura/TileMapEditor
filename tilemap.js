@@ -68,6 +68,9 @@ let directionalLight;
 let ambientLight;
 let fog;
 let autoSaveInterval;
+let composer = null;
+let renderPass = null;
+let ssaoPass = null;
 let placementRotation = 0;
 let isTransforming = false;
 
@@ -602,6 +605,7 @@ function init()
     mouse = new THREE.Vector2();
 
     loadSettingsFromStorage();
+    setupPostProcessing();
     applySettings();
     setupControls();
     setupEventListeners();
@@ -831,7 +835,39 @@ function animate()
     }
 
     // Render
-    renderer.render(scene, camera);
+    if (settings.ambientOcclusion && composer && ssaoPass)
+    {
+        composer.render();
+    }
+    else
+    {
+        renderer.render(scene, camera);
+    }
+}
+
+function setupPostProcessing()
+{
+    const viewport = document.getElementById('viewport');
+    const width = viewport ? viewport.clientWidth : renderer.domElement.width;
+    const height = viewport ? viewport.clientHeight : renderer.domElement.height;
+
+    if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.SSAOPass)
+    {
+        console.warn("SSAO dependencies are missing. Ambient Occlusion will be disabled.");
+        settings.ambientOcclusion = false;
+        return;
+    }
+
+    composer = new THREE.EffectComposer(renderer);
+    renderPass = new THREE.RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    ssaoPass = new THREE.SSAOPass(scene, camera, width, height);
+    ssaoPass.kernelRadius = 12;
+    ssaoPass.minDistance = 0.002;
+    ssaoPass.maxDistance = 0.12;
+    ssaoPass.enabled = settings.ambientOcclusion;
+    composer.addPass(ssaoPass);
 }
 
 function updateCompassPosition()
@@ -2975,6 +3011,9 @@ function onWindowResize()
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
 
+    if (composer) composer.setSize(width, height);
+    if (ssaoPass) ssaoPass.setSize(width, height);
+
     // Update transform controls camera
     if (transformControls)
     {
@@ -4816,8 +4855,19 @@ function applySettings()
         directionalLight.color.setHex(settings.lightColor);
     }
 
-    // Ambient Occlusion (simplified - would need SSAO pass for full effect)
-    // This is a placeholder - in a real implementation you'd use SSAO pass
+    // Ambient Occlusion
+    if (settings.ambientOcclusion && !ssaoPass)
+    {
+        showNotification("Ambient Occlusion unavailable: SSAO pass failed to initialize", "warning");
+        settings.ambientOcclusion = false;
+        const aoToggle = document.getElementById('enableAO');
+        if (aoToggle) aoToggle.checked = false;
+    }
+
+    if (ssaoPass)
+    {
+        ssaoPass.enabled = settings.ambientOcclusion;
+    }
 
     // Grid & View
     if (gridHelper)
