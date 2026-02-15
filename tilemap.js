@@ -220,6 +220,7 @@ class RemoveTileCommand extends Command
     }
 }
 
+// Function: debugSelection
 function debugSelection(intersects)
 {
     console.log("Number of intersects:", intersects.length);
@@ -437,6 +438,7 @@ class TransformCommand extends Command
     }
 }
 
+// Function: getDetailScaleMultiplier
 function getDetailScaleMultiplier(detailMesh)
 {
     if (!detailMesh.userData.isDetail) return detailMesh.scale.clone();
@@ -452,6 +454,7 @@ function getDetailScaleMultiplier(detailMesh)
     return new THREE.Vector3(defaultScale[0], defaultScale[1], defaultScale[2]);
 }
 
+// Function: getEffectiveDimensions
 function getEffectiveDimensions(tileData, rotation)
 {
     // Handle details that might not have traditional size
@@ -466,6 +469,7 @@ function getEffectiveDimensions(tileData, rotation)
     return isRotated ? [h, w] : [w, h];
 }
 
+// Function: executeCommand
 function executeCommand(command)
 {
     if (historyIndex < history.length - 1)
@@ -486,6 +490,7 @@ function executeCommand(command)
     updateHistoryButtons();
 }
 
+// Function: undo
 function undo()
 {
     if (historyIndex >= 0)
@@ -496,6 +501,7 @@ function undo()
     }
 }
 
+// Function: redo
 function redo()
 {
     if (historyIndex < history.length - 1)
@@ -506,6 +512,7 @@ function redo()
     }
 }
 
+// Function: updateHistoryButtons
 function updateHistoryButtons()
 {
     document.getElementById('undoButton').disabled = historyIndex < 0;
@@ -513,6 +520,7 @@ function updateHistoryButtons()
 }
 
 // --- Coordinate conversion ---
+// Function: cellToWorld
 function cellToWorld(cellX, cellZ)
 {
     return {
@@ -521,6 +529,7 @@ function cellToWorld(cellX, cellZ)
     };
 }
 
+// Function: worldToCell
 function worldToCell(worldX, worldZ)
 {
     return {
@@ -529,6 +538,7 @@ function worldToCell(worldX, worldZ)
     };
 }
 
+// Function: getViewportDimensions
 function getViewportDimensions()
 {
     const leftWidth = document.getElementById('sidebar')?.offsetWidth || 0;
@@ -542,6 +552,7 @@ function getViewportDimensions()
     };
 }
 
+// Function: init
 function init()
 {
     scene = new THREE.Scene();
@@ -642,6 +653,7 @@ function init()
     animate();
 }
 
+// Function: initTransformControls
 function initTransformControls()
 {
     // Create transform controls
@@ -818,6 +830,7 @@ function initTransformControls()
     scene.add(transformControls);
 }
 
+// Function: clampDetailScale
 function clampDetailScale(mesh, actualScale)
 {
     if (!mesh.userData.isDetail || !mesh.userData.tileData) return actualScale;
@@ -834,6 +847,7 @@ function clampDetailScale(mesh, actualScale)
 }
 
 // --- The Global Animation Loop (Fixed) ---
+// Function: animate
 function animate()
 {
     requestAnimationFrame(animate);
@@ -858,6 +872,7 @@ function animate()
     }
 }
 
+// Function: setupPostProcessing
 function setupPostProcessing()
 {
     const viewport = document.getElementById('viewport');
@@ -889,6 +904,7 @@ function setupPostProcessing()
     }
 }
 
+// Function: applyAmbientOcclusionSettings
 function applyAmbientOcclusionSettings()
 {
     if (!ssaoPass) return;
@@ -904,6 +920,7 @@ function applyAmbientOcclusionSettings()
     ssaoPass.maxDistance = settings.aoMaxDistance;
 }
 
+// Function: updateCompassPosition
 function updateCompassPosition()
 {
     if (compassGroup)
@@ -913,6 +930,7 @@ function updateCompassPosition()
 }
 
 // --- Setup & Events ---
+// Function: setupEventListeners
 function setupEventListeners()
 {
     // Tool Buttons
@@ -1299,6 +1317,7 @@ function setupEventListeners()
     window.addEventListener('resize', onWindowResize);
 }
 
+// Function: setInteractionMode
 function setInteractionMode(mode)
 {
     // Only set interaction mode if we're in the correct editor mode
@@ -1350,6 +1369,7 @@ function setInteractionMode(mode)
 }
 
 
+// Function: resetDetailTransform
 function resetDetailTransform()
 {
     if (selectedPlacedTile && selectedPlacedTile.userData.isDetail)
@@ -1377,6 +1397,7 @@ function resetDetailTransform()
     }
 }
 
+// Function: updateEditorModeUI
 function updateEditorModeUI()
 {
     // Update mode buttons
@@ -1410,6 +1431,7 @@ function updateEditorModeUI()
     updateModeIndicator();
 }
 
+// Function: toggleTransformMode
 function toggleTransformMode()
 {
     if (!transformControls || !transformControls.object)
@@ -1425,6 +1447,7 @@ function toggleTransformMode()
     setTransformMode(modes[nextIndex]);
 }
 
+// Function: setTransformMode
 function setTransformMode(mode)
 {
     if (editorMode !== 'details') return;
@@ -1472,6 +1495,7 @@ function setTransformMode(mode)
     //  showNotification(`Transform: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`, 'info');
 }
 
+// Function: toggleSnap
 function toggleSnap()
 {
     snapEnabled = !snapEnabled;
@@ -1509,6 +1533,7 @@ function toggleSnap()
     // showNotification(`Snap: ${snapEnabled ? 'ON' : 'OFF'}`, 'info');
 }
 
+// Function: updateModeIndicator
 function updateModeIndicator()
 {
     let statusText = `${editorMode === 'tiles' ? 'Tile' : 'Detail'} Mode: `;
@@ -1543,6 +1568,7 @@ function updateModeIndicator()
 }
 
 
+// Function: setPresetView
 function setPresetView(theta, phi)
 {
     cameraDistance = 60;
@@ -1551,6 +1577,7 @@ function setPresetView(theta, phi)
     updateCameraPosition();
 }
 
+// Function: toggleGrid
 function toggleGrid()
 {
     if (gridHelper)
@@ -1574,6 +1601,7 @@ function toggleGrid()
 }
 // --- Layer Logic ---
 
+// Function: updateLayerPanel
 function updateLayerPanel()
 {
     const layerListEl = document.getElementById('layerList');
@@ -1688,6 +1716,7 @@ function updateLayerPanel()
     if (delBtn) delBtn.disabled = layerMap.size <= 1;
 }
 
+// Function: updateGridPosition
 function updateGridPosition()
 {
     if (!gridHelper) return;
@@ -1721,6 +1750,7 @@ function updateGridPosition()
     animateGridMove();
 }
 
+// Function: addLayer
 function addLayer()
 {
     // Find the next available layer number
@@ -1759,6 +1789,7 @@ function addLayer()
     updateGridPosition();
 }
 
+// Function: deleteLayer
 function deleteLayer()
 {
     if (layerMap.size <= 1) return;
@@ -1813,6 +1844,7 @@ function deleteLayer()
     updateGridPosition();
 }
 
+// Function: toggleLayerVisibility
 function toggleLayerVisibility(layerNum, isVisible)
 {
     scene.traverse(object =>
@@ -1824,6 +1856,7 @@ function toggleLayerVisibility(layerNum, isVisible)
     });
 }
 
+// Function: toggleDetailLayerVisibility
 function toggleDetailLayerVisibility(isVisible)
 {
     detailLayerVisible = isVisible;
@@ -1841,6 +1874,7 @@ function toggleDetailLayerVisibility(isVisible)
 
 // --- Camera & Walk Mode ---
 
+// Function: toggleWalk
 function toggleWalk()
 {
     walkMode = !walkMode;
@@ -1897,6 +1931,7 @@ document.addEventListener('mousemove', (e) =>
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
+// Function: updateWalker
 function updateWalker(delta)
 {
     if (!walkMode) return;
@@ -1948,6 +1983,7 @@ function updateWalker(delta)
     walkCamera.position.y = Math.max(0.5, walkCamera.position.y);
 }
 
+// Function: getLayoutData
 function getLayoutData()
 {
     const exportData = {
@@ -1997,6 +2033,7 @@ function getLayoutData()
     return exportData;
 }
 
+// Function: checkAutoSave
 function checkAutoSave()
 {
     const savedData = localStorage.getItem(AUTOSAVE_KEY);
@@ -2027,6 +2064,7 @@ function checkAutoSave()
     return null;
 }
 
+// Function: autoSave
 function autoSave()
 {
     const layout = getLayoutData();
@@ -2042,12 +2080,14 @@ function autoSave()
 }
 
 
+// Function: setupAutoSave
 function setupAutoSave()
 {
     autoSave();
     setInterval(autoSave, AUTOSAVE_INTERVAL);
 }
 // Add at global level or with other helper functions
+// Function: visualizeRaycast
 function visualizeRaycast(raycaster, length = 10, color = 0xff0000, duration = 1000)
 {
     // Create an arrow helper
@@ -2081,6 +2121,7 @@ function visualizeRaycast(raycaster, length = 10, color = 0xff0000, duration = 1
     return arrow;
 }
 
+// Function: debugRaycastDetails
 function debugRaycastDetails()
 {
     console.log('=== DETAIL RAYCAST DEBUG ===');
@@ -2143,6 +2184,7 @@ function debugRaycastDetails()
     console.log('===============================');
 }
 
+// Function: onMouseDown
 function onMouseDown(event)
 {
     if (walkMode) return;
@@ -2276,6 +2318,7 @@ function onMouseDown(event)
 }
 
 
+// Function: onMouseMove
 function onMouseMove(event)
 {
     if (walkMode || isTransforming) return; // NEW: Skip if transforming
@@ -2367,6 +2410,7 @@ function onMouseMove(event)
     }
 }
 
+// Function: updateTilePreview
 function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
 {
     const tileToUse = tileData || selectedPaletteTile;
@@ -2424,6 +2468,7 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
     updatePreviewGhostAppearance();
 }
 
+// Function: updateDetailPreview
 function updateDetailPreview(detailData, hitPoint)
 {
     removeDetailPreview();
@@ -2545,6 +2590,7 @@ async function onMouseUp(event)
     draggedTile = null;
 }
 
+// Function: onMouseWheel
 function onMouseWheel(event)
 {
     const zoomSpeed = 0.1;
@@ -2553,6 +2599,7 @@ function onMouseWheel(event)
     updateCameraPosition();
 }
 
+// Function: checkCollision
 function checkCollision(x, z, layer, w, h, excludeMesh = null)
 {
     for (let i = 0; i < w; i++)
@@ -2753,6 +2800,7 @@ async function prepareTileMesh(cellX, cellZ, layer, tileData, rotationOverride =
     return mesh;
 }
 
+// Function: updatePreviewGhost
 function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
 {
     const tileToUse = overrideTile || selectedPaletteTile;
@@ -2830,6 +2878,7 @@ function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
     }
 }
 
+// Function: updatePreviewGhostAppearance
 function updatePreviewGhostAppearance()
 {
     if (!previewGhost || !previewGhost.material) return;
@@ -2846,6 +2895,7 @@ function updatePreviewGhostAppearance()
     previewGhost.material.needsUpdate = true;
 }
 
+// Function: removePreviewGhost
 function removePreviewGhost()
 {
     if (previewGhost)
@@ -2857,6 +2907,7 @@ function removePreviewGhost()
     }
 }
 
+// Function: getRootTileMesh
 function getRootTileMesh(intersectedObject)
 {
     let obj = intersectedObject;
@@ -2879,6 +2930,7 @@ function getRootTileMesh(intersectedObject)
     return intersectedObject;
 }
 
+// Function: raycastTiles
 function raycastTiles()
 {
     const tileMeshes = [];
@@ -2907,6 +2959,7 @@ function raycastTiles()
     return raycaster.intersectObjects(tileMeshes, true);
 }
 
+// Function: selectTile
 function selectTile(tileMesh)
 {
     // Don't select if we're in the wrong mode
@@ -2952,6 +3005,7 @@ function selectTile(tileMesh)
     updateModeIndicator();
 }
 
+// Function: deselectTile
 function deselectTile()
 {
     if (selectedPlacedTile)
@@ -2977,6 +3031,7 @@ function deselectTile()
     }
 }
 
+// Function: rotateSelectedTile
 function rotateSelectedTile()
 {
     if (!selectedPlacedTile) return;
@@ -3015,6 +3070,7 @@ function rotateSelectedTile()
     executeCommand(new RotateTileCommand(selectedPlacedTile, currentRot, newRot));
 }
 
+// Function: createFallbackMesh
 function createFallbackMesh(tileData)
 {
     const geometry = new THREE.BoxGeometry(
@@ -3037,6 +3093,7 @@ function createFallbackMesh(tileData)
     return mesh;
 }
 
+// Function: animateTilePlacement
 function animateTilePlacement(mesh)
 {
     const originalScale = mesh.scale.x;
@@ -3054,6 +3111,7 @@ function animateTilePlacement(mesh)
     animatePlacementStep();
 }
 
+// Function: setupControls
 function setupControls()
 {
     const viewport = renderer.domElement;
@@ -3070,6 +3128,7 @@ function setupControls()
     viewport.addEventListener('contextmenu', e => e.preventDefault());
 }
 
+// Function: createGrid
 function createGrid(layerY = 0)
 {
     // Remove existing grid if it exists
@@ -3104,6 +3163,7 @@ function createGrid(layerY = 0)
     gridHelper.visible = isGridVisible;
 }
 
+// Function: updateCameraPosition
 function updateCameraPosition()
 {
     camera.position.set(
@@ -3114,6 +3174,7 @@ function updateCameraPosition()
     camera.lookAt(cameraTarget);
 }
 
+// Function: onWindowResize
 function onWindowResize()
 {
     const { width, height } = getViewportDimensions();
@@ -3132,6 +3193,7 @@ function onWindowResize()
     }
 }
 
+// Function: placeDetailAtPosition
 function placeDetailAtPosition(detailData, position, rotation = 0, scale = [1, 1, 1])
 {
     // Create a detail mesh at exact position (not grid-snapped)
@@ -3234,6 +3296,7 @@ async function prepareDetailMesh(worldX, worldZ, layer, detailData, rotation = 0
     }
 }
 
+// Function: calculateActualScale
 function calculateActualScale(detailMesh)
 {
     if (!detailMesh.userData.isDetail) return detailMesh.scale;
@@ -3355,6 +3418,7 @@ async function placeDetailMesh(detailData, position, rotation = 0, scale = null)
     }
 }
 
+// Function: resetDetailScale
 function resetDetailScale()
 {
     if (selectedPlacedTile && selectedPlacedTile.userData.isDetail)
@@ -3409,6 +3473,7 @@ async function loadTilePackFromURL(url)
     }
 }
 
+// Function: loadTilePack
 function loadTilePack(tilePack)
 {
     const packId = tilePack.id || THREE.MathUtils.generateUUID();
@@ -3462,6 +3527,7 @@ function loadTilePack(tilePack)
     showNotification(`Loaded pack: ${tilePack.name}`);
 }
 
+// Function: createCategoryTabs
 function createCategoryTabs()
 {
     const container = document.getElementById('asset-browser');
@@ -3476,6 +3542,7 @@ function createCategoryTabs()
     container.insertBefore(categoryTabs, tileGrid);
 }
 
+// Function: updateCategoryTabs
 function updateCategoryTabs()
 {
     const categoryTabs = document.getElementById('categoryTabs');
@@ -3516,6 +3583,7 @@ function updateCategoryTabs()
     });
 }
 
+// Function: filterByCategory
 function filterByCategory(category)
 {
     // Update active tab
@@ -3542,6 +3610,7 @@ function filterByCategory(category)
     });
 }
 
+// Function: createPackTabs
 function createPackTabs()
 {
     const container = document.getElementById('packTabs');
@@ -3562,6 +3631,7 @@ function createPackTabs()
     });
 }
 
+// Function: updateTileGrid
 function updateTileGrid()
 {
     const grid = document.getElementById('tileGrid');
@@ -3746,6 +3816,7 @@ function updateTileGrid()
     }
 }
 
+// Function: switchEditorMode
 function switchEditorMode(mode)
 {
     if (editorMode === mode) return;
@@ -3782,6 +3853,7 @@ function switchEditorMode(mode)
     showNotification(`Switched to ${mode === 'tiles' ? 'Tile' : 'Detail'} Mode`, 'info');
 }
 
+// Function: setupDragAndDrop
 function setupDragAndDrop()
 {
     const grid = document.getElementById('tileGrid');
@@ -3931,6 +4003,7 @@ function setupDragAndDrop()
     });
 }
 
+// Function: removeDetailPreview
 function removeDetailPreview()
 {
     if (detailPreview)
@@ -3942,6 +4015,7 @@ function removeDetailPreview()
     }
 }
 
+// Function: showNotification
 function showNotification(msg, type = 'success')
 {
     const notif = document.createElement('div');
@@ -3959,6 +4033,7 @@ function showNotification(msg, type = 'success')
     setTimeout(() => notif.remove(), 3000);
 }
 
+// Function: clearGrid
 function clearGrid()
 {
     if (!confirm('Are you sure you want to clear all tiles and details?')) return;
@@ -4007,6 +4082,7 @@ function clearGrid()
     showNotification('Grid cleared');
 }
 
+// Function: saveLayout
 function saveLayout()
 {
     const layout = {
@@ -4102,6 +4178,7 @@ function saveLayout()
     showNotification(`Saved ${layout.tiles.length} tiles and ${layout.details.length} details`);
 }
 
+// Function: handleLayoutLoad
 function handleLayoutLoad(e)
 {
     const file = e.target.files[0];
@@ -4436,6 +4513,7 @@ class MoveTileCommand extends Command
     }
 }
 // Add these helper functions near the other utility functions (around line 140)
+// Function: applyModelScale
 function applyModelScale(mesh)
 {
     if (MODEL_SCALE !== 1.0)
@@ -4445,6 +4523,7 @@ function applyModelScale(mesh)
     return mesh;
 }
 
+// Function: removeModelScale
 function removeModelScale(mesh)
 {
     if (MODEL_SCALE !== 1.0)
@@ -4454,16 +4533,19 @@ function removeModelScale(mesh)
     return mesh;
 }
 
+// Function: scaleVectorForModel
 function scaleVectorForModel(vector)
 {
     return vector.multiplyScalar(MODEL_SCALE);
 }
 
+// Function: unscaleVectorForExport
 function unscaleVectorForExport(vector)
 {
     return vector.multiplyScalar(MODEL_SCALE_INVERSE);
 }
 
+// Function: getBoundingBoxCenter
 function getBoundingBoxCenter(boundsMin, boundsMax)
 {
     return {
@@ -4473,6 +4555,7 @@ function getBoundingBoxCenter(boundsMin, boundsMax)
     };
 }
 
+// Function: loadMesh
 function loadMesh(url)
 {
     // 1. Check Cache
@@ -4819,6 +4902,7 @@ async function exportAsMesh()
     }
 }
 
+// Function: downloadFile
 function downloadFile(content, filename, mimeType)
 {
     const blob = new Blob([content],
@@ -4837,6 +4921,7 @@ function downloadFile(content, filename, mimeType)
     URL.revokeObjectURL(url);
 }
 
+// Function: disposeMesh
 function disposeMesh(mesh)
 {
     mesh.traverse((child) =>
@@ -4859,17 +4944,20 @@ function disposeMesh(mesh)
     });
 }
 
+// Function: openSettings
 function openSettings()
 {
     document.getElementById('settingsWindow').style.display = 'flex';
     loadSettingsToUI();
 }
 
+// Function: closeSettings
 function closeSettings()
 {
     document.getElementById('settingsWindow').style.display = 'none';
 }
 
+// Function: loadSettingsToUI
 function loadSettingsToUI()
 {
     // Tone Mapping
@@ -4917,6 +5005,7 @@ function loadSettingsToUI()
     document.getElementById('autosaveValue').textContent = settings.autosaveInterval + 's';
 }
 
+// Function: applySettings
 function applySettings()
 {
     // Tone Mapping
@@ -5029,6 +5118,7 @@ function applySettings()
     closeSettings();
 }
 
+// Function: saveSettingsToStorage
 function saveSettingsToStorage()
 {
     try
@@ -5044,6 +5134,7 @@ function saveSettingsToStorage()
 /**
  * Export for Second Life with all offsets properly calculated
  */
+// Function: exportForSecondLife
 function exportForSecondLife()
 {
     if (placedTiles.size === 0)
@@ -5158,6 +5249,7 @@ function exportForSecondLife()
     showNotification(`Exported ${lines.length} tiles`);
 }
 
+// Function: loadSettingsFromStorage
 function loadSettingsFromStorage()
 {
     try
@@ -5176,6 +5268,7 @@ function loadSettingsFromStorage()
     }
 }
 
+// Function: resetSettingsToDefaults
 function resetSettingsToDefaults()
 {
     if (!confirm("Reset all settings to defaults?")) return;
@@ -5299,6 +5392,7 @@ async function create3DCompass()
     scene.add(compassGroup);
 }
 
+// Function: createTextMesh
 function createTextMesh(text, font, material, size = 3)
 {
     const textGeometry = new THREE.TextGeometry(text,
@@ -5319,6 +5413,7 @@ function createTextMesh(text, font, material, size = 3)
     return textMesh;
 }
 
+// Function: createFallbackCompass
 function createFallbackCompass(gridHalfSize, compassHeight, compassOffset)
 {
     // Fallback using basic shapes if font loading fails
@@ -5372,6 +5467,7 @@ function createFallbackCompass(gridHalfSize, compassHeight, compassOffset)
     createCanvasTextMarker('W', -gridHalfSize - compassOffset, compassHeight, 0.5, 0x4fc3f7);
 }
 
+// Function: createCanvasTextMarker
 function createCanvasTextMarker(text, x, y, z, color)
 {
     const canvas = document.createElement('canvas');
@@ -5413,6 +5509,7 @@ function createCanvasTextMarker(text, x, y, z, color)
     compassGroup.add(mesh);
 }
 
+// Function: createSimpleText
 function createSimpleText(text, size = 1)
 {
     // Create simple text using sprites if font not available
@@ -5443,6 +5540,7 @@ function createSimpleText(text, size = 1)
     return sprite;
 }
 
+// Function: createTextBackgrounds
 function createTextBackgrounds(group, gridHalfSize, compassHeight)
 {
     // Add subtle planes behind text for better readability
@@ -5519,6 +5617,7 @@ async function analyzeTileVisualOffset(tileData)
  * @param {number} rotation - Current rotation in radians
  * @returns {THREE.Vector3} Offset vector
  */
+// Function: calculateVisualOffset
 function calculateVisualOffset(mesh, tileData, rotation)
 {
     // 1. Get bounding box in LOCAL space (no rotation/position)
@@ -5559,6 +5658,7 @@ function calculateVisualOffset(mesh, tileData, rotation)
     return offset;
 }
 
+// Function: calculatePivotOffset
 function calculatePivotOffset(mesh)
 {
     // Get bounding box in LOCAL SPACE (no transforms)
@@ -5580,6 +5680,7 @@ function calculatePivotOffset(mesh)
     };
 }
 
+// Function: switchPackType
 function switchPackType(type)
 {
     if (currentPackType === type) return;
@@ -5609,6 +5710,7 @@ function switchPackType(type)
     updateTileGrid();
 }
 
+// Function: updatePackList
 function updatePackList()
 {
     const container = document.getElementById('packTabs');
@@ -5668,6 +5770,7 @@ async function loadDetailPackFromURL(url)
     }
 }
 
+// Function: loadDetailPack
 function loadDetailPack(detailPack)
 {
     const packId = detailPack.id || THREE.MathUtils.generateUUID();
@@ -5712,6 +5815,7 @@ function loadDetailPack(detailPack)
     showNotification(`Loaded detail pack: ${detailPack.name}`);
 }
 
+// Function: updateDetailGrid
 function updateDetailGrid()
 {
     const grid = document.getElementById('tileGrid');
@@ -5796,6 +5900,7 @@ function updateDetailGrid()
     filterByCategoryForDetails(activeCategory);
 }
 
+// Function: updateCategoryTabsForDetails
 function updateCategoryTabsForDetails()
 {
     const categoryTabs = document.getElementById('categoryTabs');
@@ -5835,6 +5940,7 @@ function updateCategoryTabsForDetails()
     });
 }
 
+// Function: filterByCategoryForDetails
 function filterByCategoryForDetails(category)
 {
     // Update active tab
