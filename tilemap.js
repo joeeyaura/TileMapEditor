@@ -55,6 +55,9 @@ let settings = {
     directionalIntensity: 5.0,
     lightColor: 0xffffff,
     ambientOcclusion: false,
+    aoRadius: 12,
+    aoMinDistance: 0.002,
+    aoMaxDistance: 0.12,
     gridSize: 64,
     gridColor1: 0x2a3f8a,
     gridColor2: 0x1a2a5a,
@@ -865,10 +868,7 @@ function setupPostProcessing()
     try
     {
         ssaoPass = new THREE.SSAOPass(scene, camera, width, height);
-        ssaoPass.kernelRadius = 12;
-        ssaoPass.minDistance = 0.002;
-        ssaoPass.maxDistance = 0.12;
-        ssaoPass.enabled = settings.ambientOcclusion;
+        applyAmbientOcclusionSettings();
         composer.addPass(ssaoPass);
     }
     catch (error)
@@ -877,6 +877,21 @@ function setupPostProcessing()
         ssaoPass = null;
         settings.ambientOcclusion = false;
     }
+}
+
+function applyAmbientOcclusionSettings()
+{
+    if (!ssaoPass) return;
+
+    if (settings.aoMaxDistance <= settings.aoMinDistance)
+    {
+        settings.aoMaxDistance = settings.aoMinDistance + 0.01;
+    }
+
+    ssaoPass.enabled = settings.ambientOcclusion;
+    ssaoPass.kernelRadius = settings.aoRadius;
+    ssaoPass.minDistance = settings.aoMinDistance;
+    ssaoPass.maxDistance = settings.aoMaxDistance;
 }
 
 function updateCompassPosition()
@@ -1074,6 +1089,18 @@ function setupEventListeners()
                 {
                     valueSpan.textContent = e.target.value + 's';
                 }
+                else if (e.target.id === 'aoMinDistance')
+                {
+                    valueSpan.textContent = parseFloat(e.target.value).toFixed(3);
+                }
+                else if (e.target.id === 'aoMaxDistance')
+                {
+                    valueSpan.textContent = parseFloat(e.target.value).toFixed(2);
+                }
+                else if (e.target.id === 'aoRadius')
+                {
+                    valueSpan.textContent = parseInt(e.target.value);
+                }
                 else
                 {
                     valueSpan.textContent = parseFloat(e.target.value).toFixed(1);
@@ -1095,6 +1122,9 @@ function setupEventListeners()
         settings.directionalIntensity = parseFloat(document.getElementById('directionalIntensity').value);
         settings.lightColor = parseInt(document.getElementById('lightColor').value.replace('#', '0x'));
         settings.ambientOcclusion = document.getElementById('enableAO').checked;
+        settings.aoRadius = parseInt(document.getElementById('aoRadius').value);
+        settings.aoMinDistance = parseFloat(document.getElementById('aoMinDistance').value);
+        settings.aoMaxDistance = parseFloat(document.getElementById('aoMaxDistance').value);
         settings.gridSize = parseInt(document.getElementById('gridSize').value);
         settings.gridColor1 = parseInt(document.getElementById('gridColor1').value.replace('#', '0x'));
         settings.gridColor2 = parseInt(document.getElementById('gridColor2').value.replace('#', '0x'));
@@ -4781,6 +4811,12 @@ function loadSettingsToUI()
     document.getElementById('directionalValue').textContent = settings.directionalIntensity.toFixed(1);
     document.getElementById('lightColor').value = '#' + settings.lightColor.toString(16).padStart(6, '0');
     document.getElementById('enableAO').checked = settings.ambientOcclusion;
+    document.getElementById('aoRadius').value = settings.aoRadius;
+    document.getElementById('aoRadiusValue').textContent = settings.aoRadius;
+    document.getElementById('aoMinDistance').value = settings.aoMinDistance;
+    document.getElementById('aoMinDistanceValue').textContent = settings.aoMinDistance.toFixed(3);
+    document.getElementById('aoMaxDistance').value = settings.aoMaxDistance;
+    document.getElementById('aoMaxDistanceValue').textContent = settings.aoMaxDistance.toFixed(2);
 
     // Grid & View
     document.getElementById('gridSize').value = settings.gridSize;
@@ -4875,7 +4911,7 @@ function applySettings()
 
     if (ssaoPass)
     {
-        ssaoPass.enabled = settings.ambientOcclusion;
+        applyAmbientOcclusionSettings();
     }
 
     // Grid & View
@@ -5069,6 +5105,9 @@ function resetSettingsToDefaults()
         directionalIntensity: 5.0,
         lightColor: 0xffffff,
         ambientOcclusion: false,
+        aoRadius: 12,
+        aoMinDistance: 0.002,
+        aoMaxDistance: 0.12,
         gridSize: 64,
         gridColor1: 0x2a3f8a,
         gridColor2: 0x1a2a5a,
