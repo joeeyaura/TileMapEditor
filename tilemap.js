@@ -2341,7 +2341,7 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
             transparent: true,
             opacity: settings.ghostOpacity,
             side: THREE.DoubleSide,
-            wireframe: true
+            emissive: new THREE.Color(tileToUse.color || '#4fc3f7').multiplyScalar(0.2)
         });
         const geometry = new THREE.BoxGeometry(tileWidth, 1.0, tileHeight);
         previewGhost = new THREE.Mesh(geometry, ghostMaterial);
@@ -2362,6 +2362,7 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
 
     const valid = !checkCollision(cell.x, cell.z, currentLayer, effW, effH, excludeMesh);
     previewGhost.material.color.setHex(valid ? (tileToUse.color ? new THREE.Color(tileToUse.color).getHex() : 0x4fc3f7) : 0xff0000);
+    updatePreviewGhostAppearance();
 }
 
 function updateDetailPreview(detailData, hitPoint)
@@ -2737,6 +2738,7 @@ function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
                 color: new THREE.Color(tileToUse.color || '#4fc3f7'),
                 transparent: true,
                 opacity: settings.ghostOpacity, // Use setting
+                side: THREE.DoubleSide,
                 emissive: new THREE.Color(tileToUse.color || '#4fc3f7').multiplyScalar(0.2)
             });
             const geometry = new THREE.BoxGeometry(tileWidth, 1.0, tileHeight);
@@ -2760,12 +2762,29 @@ function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
 
         const valid = !checkCollision(cell.x, cell.z, currentLayer, effW, effH, excludeMesh);
         previewGhost.material.color.setHex(valid ? (tileToUse.color ? new THREE.Color(tileToUse.color).getHex() : 0x4fc3f7) : 0xff0000);
+        updatePreviewGhostAppearance();
 
     }
     else
     {
         removePreviewGhost();
     }
+}
+
+function updatePreviewGhostAppearance()
+{
+    if (!previewGhost || !previewGhost.material) return;
+
+    previewGhost.material.transparent = true;
+    previewGhost.material.opacity = settings.ghostOpacity;
+    previewGhost.material.wireframe = false;
+
+    if (previewGhost.material.emissive)
+    {
+        previewGhost.material.emissive.copy(previewGhost.material.color).multiplyScalar(0.2);
+    }
+
+    previewGhost.material.needsUpdate = true;
 }
 
 function removePreviewGhost()
@@ -4926,6 +4945,11 @@ function applySettings()
     scene.background.setHex(settings.backgroundColor);
     camera.fov = settings.fov;
     camera.updateProjectionMatrix();
+
+    if (previewGhost)
+    {
+        updatePreviewGhostAppearance();
+    }
 
     // Editor settings (some are applied elsewhere)
     MAX_HISTORY = settings.historySize;
