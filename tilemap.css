@@ -48,6 +48,14 @@ body {
     z-index: 10;
 }
 
+#sidebar > .section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 #viewport {
     flex-grow: 1;
     position: relative;
@@ -1067,7 +1075,9 @@ input:checked + .slider:before {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 200px;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
 }
 
