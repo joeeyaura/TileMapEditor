@@ -1989,6 +1989,34 @@ function getLayoutData()
     return buildLayoutData();
 }
 
+// Normalizes serialized tile rotation values to quarter-turn integers (0-3).
+function normalizeTileQuarterTurns(rotationValue)
+{
+    if (!Number.isFinite(rotationValue)) return 0;
+
+    // Already in quarter-turn format.
+    if (Number.isInteger(rotationValue) && rotationValue >= 0 && rotationValue <= 3)
+    {
+        return rotationValue;
+    }
+
+    // Legacy export sometimes stored very large integer turn counts.
+    if (Number.isInteger(rotationValue) && Math.abs(rotationValue) > 3)
+    {
+        return ((rotationValue % 4) + 4) % 4;
+    }
+
+    // Assume radians and snap to nearest 90 degrees to prevent 45°/off-grid rotations.
+    const quarterTurns = Math.round(rotationValue / (Math.PI / 2));
+    return ((quarterTurns % 4) + 4) % 4;
+}
+
+// Converts serialized tile rotation (int or radians) into snapped radians.
+function getSnappedTileRotationRadians(rotationValue)
+{
+    return normalizeTileQuarterTurns(rotationValue) * (Math.PI / 2);
+}
+
 // Builds a complete layout payload for autosave and manual save.
 function buildLayoutData()
 {
@@ -2022,7 +2050,7 @@ function buildLayoutData()
                 z: tile.userData.position.cellZ,
                 layer: tile.userData.position.layer
             },
-            rotation: tile.userData.rotation || 0
+            rotation: normalizeTileQuarterTurns(tile.userData.rotation || 0)
         });
     });
 
@@ -4226,24 +4254,8 @@ async function loadLayout(layoutData, skipConfirm = false)
             {
                 try
                 {
-                    let rotation = 0;
                     const normalizedRotation = savedTile.rotation ?? savedTile.rot;
-
-                    if (typeof normalizedRotation === 'number')
-                    {
-                        if (normalizedRotation >= 0 && normalizedRotation <= 3 && Number.isInteger(normalizedRotation))
-                        {
-                            rotation = normalizedRotation * (Math.PI / 2);
-                        }
-                        else if (normalizedRotation < Math.PI * 4)
-                        {
-                            rotation = normalizedRotation % (Math.PI * 2);
-                        }
-                        else
-                        {
-                            rotation = (normalizedRotation % 4) * (Math.PI / 2);
-                        }
-                    }
+                    const rotation = getSnappedTileRotationRadians(normalizedRotation);
 
                     const mesh = await prepareTileMesh(tilePosition.x, tilePosition.z, tilePosition.layer, tileDef, rotation);
                     if (mesh)
