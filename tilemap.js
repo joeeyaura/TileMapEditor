@@ -1986,51 +1986,84 @@ function updateWalker(delta)
 // Returns layout data.
 function getLayoutData()
 {
-    const exportData = {
-        tiles: [],
-        layers: [],
+    return buildLayoutData();
+}
+
+// Builds a complete layout payload for autosave and manual save.
+function buildLayoutData()
+{
+    const layout = {
+        version: '2.2',
+        gridSize: GRID_SIZE,
         detailLayerVisible,
-        version: "1.1"
+        tiles: [],
+        details: [],
+        layers: []
     };
 
     const processed = new Set();
 
-    // Export Tiles
-    placedTiles.forEach(mesh =>
+    // Save grid tiles.
+    placedTiles.forEach(tile =>
     {
-        if (processed.has(mesh.uuid)) return;
-        processed.add(mesh.uuid);
+        if (!tile?.userData || processed.has(tile.userData.uuid) || tile.userData.isDetail) return;
 
-        if (mesh.userData.tileData)
+        processed.add(tile.userData.uuid);
+        const tileData = tile.userData.tileData;
+        const packId = tileData.packId?.split(':')[0] || 'unknown';
+
+        layout.tiles.push(
         {
-            // Convert rotation from radians to 0-3 integer
-            const radRotation = mesh.userData.rotation || 0;
-            const intRotation = Math.round((radRotation % (Math.PI * 2)) / (Math.PI / 2)) % 4;
-
-            exportData.tiles.push(
+            packId,
+            tileId: tileData.originalId || tileData.id.split(':')[1],
+            position:
             {
-                id: mesh.userData.tileData.originalId,
-                pack: mesh.userData.tileData.packId,
-                x: mesh.userData.position.cellX,
-                z: mesh.userData.position.cellZ,
-                layer: mesh.userData.position.layer,
-                rot: intRotation, // Store as integer 0-3 instead of radians
-                rotDeg: Math.round(radRotation * 180 / Math.PI) // Optional: keep for readability
-            });
-        }
+                x: tile.userData.position.cellX,
+                z: tile.userData.position.cellZ,
+                layer: tile.userData.position.layer
+            },
+            rotation: tile.userData.rotation || 0
+        });
     });
 
-    // Export Layers (important for restoration)
+    // Save free-form details.
+    detailMeshes.forEach(mesh =>
+    {
+        if (!mesh?.userData || processed.has(mesh.userData.uuid)) return;
+
+        processed.add(mesh.userData.uuid);
+
+        const detailData = mesh.userData.tileData;
+        const packId = detailData.packId?.split(':')[0] || 'unknown';
+        const scale = mesh.userData.scale || new THREE.Vector3(1, 1, 1);
+
+        layout.details.push(
+        {
+            packId,
+            detailId: detailData.originalId || detailData.id.split(':')[1],
+            position:
+            {
+                x: mesh.position.x,
+                y: mesh.position.y,
+                z: mesh.position.z
+            },
+            rotation: mesh.rotation.y,
+            scale: [scale.x, scale.y, scale.z],
+            layer: mesh.userData.position.layer
+        });
+    });
+
+    // Export layer metadata for restoration.
     Array.from(layerMap.entries()).forEach(([num, data]) =>
     {
-        exportData.layers.push(
+        layout.layers.push(
         {
             num,
             ...data
         });
     });
 
-    return exportData;
+    return layout;
 }
 
 // Checks whether an auto-saved layout exists and is still valid.
@@ -4090,84 +4123,7 @@ function clearGrid()
 // Saves layout.
 function saveLayout()
 {
-    const layout = {
-        version: '2.1',
-        gridSize: GRID_SIZE,
-        layers: maxLayer,
-        detailLayerVisible,
-        tiles: [],
-        details: [] // Use 'details' not 'detailMeshes'
-    };
-
-    const processed = new Set();
-
-    // Save grid tiles
-    placedTiles.forEach(tile =>
-    {
-        if (processed.has(tile.userData.uuid)) return;
-        if (!tile.userData.isDetail)
-        {
-            processed.add(tile.userData.uuid);
-            const tileData = tile.userData.tileData;
-            const packId = tileData.packId?.split(':')[0] || 'unknown';
-
-            layout.tiles.push(
-            {
-                packId: packId,
-                tileId: tileData.originalId || tileData.id.split(':')[1],
-                position:
-                {
-                    x: tile.userData.position.cellX,
-                    z: tile.userData.position.cellZ,
-                    layer: tile.userData.position.layer
-                },
-                rotation: tile.userData.rotation
-            });
-        }
-    });
-
-    // Save detail meshes - FIXED scale saving
-    detailMeshes.forEach(mesh =>
-    {
-        if (processed.has(mesh.userData.uuid)) return;
-        processed.add(mesh.userData.uuid);
-
-        const detailData = mesh.userData.tileData;
-        const packId = detailData.packId?.split(':')[0] || 'unknown';
-
-        // CRITICAL FIX: Get the stored scale multiplier, not the mesh.scale
-        let scaleMultiplier = [1, 1, 1];
-
-        if (mesh.userData.scale)
-        {
-            // This is the stored Vector3 with the user's scale multiplier
-            scaleMultiplier = [
-                mesh.userData.scale.x,
-                mesh.userData.scale.y,
-                mesh.userData.scale.z
-            ];
-        }
-        else if (detailData.defaultScale)
-        {
-            // Fallback to default
-            scaleMultiplier = detailData.defaultScale;
-        }
-
-        layout.details.push(
-        {
-            packId: packId,
-            detailId: detailData.originalId || detailData.id.split(':')[1],
-            position:
-            {
-                x: mesh.position.x,
-                y: mesh.position.y,
-                z: mesh.position.z
-            },
-            rotation: mesh.rotation.y,
-            scale: scaleMultiplier, // Save the multiplier, not the actual scale
-            layer: mesh.userData.position.layer
-        });
-    });
+    const layout = buildLayoutData();
 
     const blob = new Blob([JSON.stringify(layout, null, 2)],
     {
@@ -4254,7 +4210,16 @@ async function loadLayout(layoutData, skipConfirm = false)
     {
         for (const savedTile of layoutData.tiles)
         {
-            const internalId = `${savedTile.pack}:${savedTile.id}`;
+            const normalizedPackId = savedTile.packId || savedTile.pack;
+            const normalizedTileId = savedTile.tileId || savedTile.id;
+            const tilePosition = savedTile.position ||
+            {
+                x: savedTile.x,
+                z: savedTile.z,
+                layer: savedTile.layer
+            };
+
+            const internalId = `${normalizedPackId}:${normalizedTileId}`;
             const tileDef = tiles.get(internalId);
 
             if (tileDef)
@@ -4262,30 +4227,32 @@ async function loadLayout(layoutData, skipConfirm = false)
                 try
                 {
                     let rotation = 0;
-                    if (typeof savedTile.rot === 'number')
+                    const normalizedRotation = savedTile.rotation ?? savedTile.rot;
+
+                    if (typeof normalizedRotation === 'number')
                     {
-                        if (savedTile.rot >= 0 && savedTile.rot <= 3 && Number.isInteger(savedTile.rot))
+                        if (normalizedRotation >= 0 && normalizedRotation <= 3 && Number.isInteger(normalizedRotation))
                         {
-                            rotation = savedTile.rot * (Math.PI / 2);
+                            rotation = normalizedRotation * (Math.PI / 2);
                         }
-                        else if (savedTile.rot < Math.PI * 4)
+                        else if (normalizedRotation < Math.PI * 4)
                         {
-                            rotation = savedTile.rot % (Math.PI * 2);
+                            rotation = normalizedRotation % (Math.PI * 2);
                         }
                         else
                         {
-                            rotation = (savedTile.rot % 4) * (Math.PI / 2);
+                            rotation = (normalizedRotation % 4) * (Math.PI / 2);
                         }
                     }
 
-                    const mesh = await prepareTileMesh(savedTile.x, savedTile.z, savedTile.layer, tileDef, rotation);
+                    const mesh = await prepareTileMesh(tilePosition.x, tilePosition.z, tilePosition.layer, tileDef, rotation);
                     if (mesh)
                     {
                         mesh.rotation.y = rotation;
                         mesh.userData.rotation = rotation;
                         scene.add(mesh);
 
-                        const key = `${savedTile.x},${savedTile.z},${savedTile.layer}`;
+                        const key = `${tilePosition.x},${tilePosition.z},${tilePosition.layer}`;
                         placedTiles.set(key, mesh);
 
                         if (mesh.userData.occupiedCells)
