@@ -5111,9 +5111,9 @@ function saveSettingsToStorage()
 // Exports the current scene layout to the text format expected by Second Life.
 function exportForSecondLife()
 {
-    if (placedTiles.size === 0)
+    if (placedTiles.size === 0 && detailMeshes.size === 0)
     {
-        showNotification("No tiles to export!", "warning");
+        showNotification("No tiles/details to export!", "warning");
         return;
     }
 
@@ -5131,96 +5131,135 @@ function exportForSecondLife()
         .map(([n]) => n)
     );
 
-    const processed = new Set();
-    const lines = [];
+    const header = 'name,positionX,positionY,positionZ,scaleX,scaleY,scaleZ,rotationX,rotationY,rotationZ,rotationW';
+    const tileLines = [];
+    const detailLines = [];
+    const processedTiles = new Set();
 
+    const formatLine = (name, position, scale, quaternion) =>
+    {
+        return `${name},` +
+            `${position.x.toFixed(3)},` +
+            `${position.y.toFixed(3)},` +
+            `${position.z.toFixed(3)},` +
+            `${scale.x.toFixed(4)},` +
+            `${scale.y.toFixed(4)},` +
+            `${scale.z.toFixed(4)},` +
+            `${quaternion.x.toFixed(6)},` +
+            `${quaternion.y.toFixed(6)},` +
+            `${quaternion.z.toFixed(6)},` +
+            `${quaternion.w.toFixed(6)}`;
+    };
+
+    // Export grid tiles first.
     placedTiles.forEach(mesh =>
     {
-        if (!mesh || processed.has(mesh.uuid)) return;
-        processed.add(mesh.uuid);
+        if (!mesh || !mesh.userData || mesh.userData.isDetail) return;
+        if (processedTiles.has(mesh.uuid)) return;
+        processedTiles.add(mesh.uuid);
 
         const tileData = mesh.userData.tileData;
         const pos = mesh.userData.position;
-        if (!tileData || !pos) return;
-        if (mesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(pos.layer || 1)) return;
+        if (!tileData || !pos || !visibleLayers.has(pos.layer || 1)) return;
 
         const rot = mesh.rotation.y || 0;
-
-        // --- effective footprint size (rotation aware)
         const [w, h] = getEffectiveDimensions(tileData, rot);
 
-        // --- footprint center in world space
         const wp = cellToWorld(
             pos.cellX + w / 2 - 0.5,
             pos.cellZ + h / 2 - 0.5
         );
 
-        let worldPos = new THREE.Vector3(wp.x, 0, wp.z);
+        const worldPos = new THREE.Vector3(wp.x, 0, wp.z);
 
-        // --- pivot offset (SL uses bounding box center)
         const pivot = tileData.pivotOffset || mesh.userData.pivotOffset;
-        let pivotVec = new THREE.Vector3(
+        const pivotVec = new THREE.Vector3(
             pivot?.x || 0,
             pivot?.y || 0,
-            (pivot?.z || 0) // ← NEGATE Z component to match coordinate flip!
+            pivot?.z || 0
         );
         pivotVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), rot);
 
-        // --- Apply visual offset if any
         const visualOffset = tileData.visualOffset || [0, 0, 0];
         worldPos.x += visualOffset[0];
         worldPos.z += visualOffset[2];
-
-        // --- final SL pivot position: footprint center + pivot offset
-        // For footprint_center pivot, we're already at the center
-        // For 1x1 tiles: w=1, h=1 → no additional offset needed
-        // For multi-cell tiles: The center is already correct
         worldPos.add(pivotVec);
 
-        // --- Y position (include visual offset in Y)
         const layerY = (pos.layer - 1) * LAYER_HEIGHT;
         const yOffset = tileData.yOffset || 0;
         const finalY = layerY + yOffset + (visualOffset[1] || 0);
 
-        // --- Convert to Second Life coordinates
-        const slX = (worldPos.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR;
-        const slY = (-worldPos.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR;
-        const slZ = finalY * SL_CONFIG.SCALE_FACTOR;
+        const slPosition = new THREE.Vector3(
+            (worldPos.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            (-worldPos.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            finalY * SL_CONFIG.SCALE_FACTOR
+        );
 
-        // --- rotation in degrees
-        let rotDeg = (rot * 180 / Math.PI) % 360;
-        if (rotDeg < 0) rotDeg += 360;
-        rotDeg = (rotDeg + SL_CONFIG.ROTATION_OFFSET) % 360;
+        const rotQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rot, 0, 'YXZ'));
+        const tileScale = new THREE.Vector3(1, 1, 1);
 
         const name = String(
             tileData.originalId ||
             tileData.id ||
             tileData.name ||
-            "tile"
+            'tile'
         );
 
-        lines.push(
-            `${name},` +
-            `${slX.toFixed(3)},` +
-            `${slY.toFixed(3)},` +
-            `${slZ.toFixed(3)},` +
-            `${rotDeg.toFixed(1)}`
-        );
+        tileLines.push(formatLine(name, slPosition, tileScale, rotQuat));
     });
 
-    // --- download
-    const blob = new Blob([lines.join("\n")],
+    // Export details last.
+    detailMeshes.forEach(mesh =>
     {
-        type: "text/plain"
+        if (!mesh || !mesh.userData || !mesh.userData.isDetail) return;
+
+        const detailData = mesh.userData.tileData;
+        const pos = mesh.userData.position;
+        if (!detailData || !pos) return;
+        if (!detailLayerVisible || !visibleLayers.has(pos.layer || 1)) return;
+
+        const slPosition = new THREE.Vector3(
+            (mesh.position.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            (-mesh.position.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            mesh.position.y * SL_CONFIG.SCALE_FACTOR
+        );
+
+        const detailScale = mesh.userData.scale ? mesh.userData.scale.clone() : new THREE.Vector3(1, 1, 1);
+        const rotQuat = mesh.quaternion.clone();
+
+        const name = String(
+            detailData.originalId ||
+            detailData.id ||
+            detailData.name ||
+            'detail'
+        );
+
+        detailLines.push(formatLine(name, slPosition, detailScale, rotQuat));
+    });
+
+    const lines = [
+        '# --- Tiles ---',
+        header,
+        ...tileLines,
+        '',
+        '# ------------------------------',
+        '# --- Details (after tiles) ---',
+        header,
+        ...detailLines
+    ];
+
+    const blob = new Blob([lines.join('\n')],
+    {
+        type: 'text/plain'
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = "secondlife_export.txt";
+    a.download = 'secondlife_export.txt';
     a.click();
     URL.revokeObjectURL(url);
 
-    showNotification(`Exported ${lines.length} tiles`);
+    showNotification(`Exported ${tileLines.length} tiles and ${detailLines.length} details`);
 }
 
 // Loads persisted editor settings from local storage.
