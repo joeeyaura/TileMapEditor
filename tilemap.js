@@ -5131,12 +5131,22 @@ function exportForSecondLife()
         .map(([n]) => n)
     );
 
-    const header = 'name,positionX,positionY,positionZ,scaleX,scaleY,scaleZ,rotationX,rotationY,rotationZ,rotationW';
+    const tileHeader = 'name,x,y,z,rotation';
+    const detailHeader = 'name,positionX,positionY,positionZ,scaleX,scaleY,scaleZ,rotationX,rotationY,rotationZ,rotationW';
     const tileLines = [];
     const detailLines = [];
     const processedTiles = new Set();
 
-    const formatLine = (name, position, scale, quaternion) =>
+    const formatTileLine = (name, position, rotationInt) =>
+    {
+        return `${name},` +
+            `${position.x.toFixed(3)},` +
+            `${position.y.toFixed(3)},` +
+            `${position.z.toFixed(3)},` +
+            `${rotationInt}`;
+    };
+
+    const formatDetailLine = (name, position, scale, quaternion) =>
     {
         return `${name},` +
             `${position.x.toFixed(3)},` +
@@ -5151,7 +5161,7 @@ function exportForSecondLife()
             `${quaternion.w.toFixed(6)}`;
     };
 
-    // Export grid tiles first.
+    // Export grid tiles first in SL legacy format: name,x,y,z,rotation(0-3).
     placedTiles.forEach(mesh =>
     {
         if (!mesh || !mesh.userData || mesh.userData.isDetail) return;
@@ -5195,8 +5205,8 @@ function exportForSecondLife()
             finalY * SL_CONFIG.SCALE_FACTOR
         );
 
-        const rotQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rot, 0, 'YXZ'));
-        const tileScale = new THREE.Vector3(1, 1, 1);
+        let rotationInt = Math.round((rot % (Math.PI * 2)) / (Math.PI / 2));
+        rotationInt = ((rotationInt % 4) + 4) % 4;
 
         const name = String(
             tileData.originalId ||
@@ -5205,7 +5215,7 @@ function exportForSecondLife()
             'tile'
         );
 
-        tileLines.push(formatLine(name, slPosition, tileScale, rotQuat));
+        tileLines.push(formatTileLine(name, slPosition, rotationInt));
     });
 
     // Export details last.
@@ -5234,17 +5244,17 @@ function exportForSecondLife()
             'detail'
         );
 
-        detailLines.push(formatLine(name, slPosition, detailScale, rotQuat));
+        detailLines.push(formatDetailLine(name, slPosition, detailScale, rotQuat));
     });
 
     const lines = [
         '# --- Tiles ---',
-        header,
+        tileHeader,
         ...tileLines,
         '',
         '# ------------------------------',
         '# --- Details (after tiles) ---',
-        header,
+        detailHeader,
         ...detailLines
     ];
 
