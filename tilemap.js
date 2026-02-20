@@ -89,9 +89,10 @@ function getDetailPositionSnap(detailData)
         };
     }
 
-    if (Number.isFinite(snap))
+    const uniformSnap = Number(snap);
+    if (Number.isFinite(uniformSnap))
     {
-        const grid = Math.max(0, snap);
+        const grid = Math.max(0, uniformSnap);
         return {
             x: grid,
             z: grid
@@ -147,6 +148,46 @@ function getDetailPlacementRotationStep(detailData)
 {
     const angleStep = getDetailAngleSnapRadians(detailData);
     return angleStep > 0 ? angleStep : Math.PI / 2;
+}
+
+
+function applyDetailTransformSnap()
+{
+    if (!transformControls) return;
+
+    if (!snapEnabled)
+    {
+        transformControls.setTranslationSnap(null);
+        transformControls.setRotationSnap(null);
+        transformControls.setScaleSnap(null);
+        return;
+    }
+
+    const activeDetail = selectedPlacedTile?.userData?.isDetail ? selectedPlacedTile.userData.tileData : null;
+    const posSnap = getDetailPositionSnap(activeDetail);
+    const rotSnap = getDetailAngleSnapRadians(activeDetail);
+
+    if (transformMode === 'translate')
+    {
+        // Prefer per-detail snapping; fallback to global editor snap.
+        const step = posSnap.x > 0 ? posSnap.x : (posSnap.z > 0 ? posSnap.z : transformSnapValues.translate);
+        transformControls.setTranslationSnap(step);
+        transformControls.setRotationSnap(null);
+        transformControls.setScaleSnap(null);
+    }
+    else if (transformMode === 'rotate')
+    {
+        const step = rotSnap > 0 ? rotSnap : transformSnapValues.rotate;
+        transformControls.setRotationSnap(step);
+        transformControls.setTranslationSnap(null);
+        transformControls.setScaleSnap(null);
+    }
+    else if (transformMode === 'scale')
+    {
+        transformControls.setScaleSnap(transformSnapValues.scale);
+        transformControls.setTranslationSnap(null);
+        transformControls.setRotationSnap(null);
+    }
 }
 
 // Dual Mode System Variables
@@ -1545,28 +1586,7 @@ function setTransformMode(mode)
     {
         transformControls.setMode(mode);
 
-        // Update snap settings
-        if (snapEnabled)
-        {
-            if (mode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (mode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (mode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
+        applyDetailTransformSnap();
     }
 
     // Update interaction mode
@@ -1581,30 +1601,7 @@ function toggleSnap()
 {
     snapEnabled = !snapEnabled;
 
-    if (transformControls)
-    {
-        if (snapEnabled)
-        {
-            if (transformMode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (transformMode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (transformMode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
-    }
+    applyDetailTransformSnap();
 
     // Update button
     const btn = document.getElementById('toggleSnap');
@@ -3135,6 +3132,7 @@ function selectTile(tileMesh)
         transformControls.attach(tileMesh);
         transformControls.visible = true;
         setTransformMode('translate');
+        applyDetailTransformSnap();
     }
 
     // Force update the mode indicator
