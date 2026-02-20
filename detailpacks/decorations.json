@@ -1,0 +1,27 @@
+{
+  "id": "decorations",
+  "name": "Decorations",
+  "details": [
+    {
+      "id": "hos_det_bed",
+      "name": "Bed",
+      "mesh": "models/hos/Detail/bed.glb",
+      "defaultScale": [1.0,1.0,1.0],
+      "snapping": "none",
+      "minScale": [1.0,1.0,1.0],
+      "maxScale": [1.25,1.25,1.25],
+      "category":"bed"
+    },
+    {
+      "id": "hos_det_stretcher",
+      "name": "Stretcher",
+      "mesh": "models/hos/Detail/stretcher.glb",
+      "defaultScale": [1.0,1.0,1.0],
+      "snapping": "none",
+      "minScale": [1.0,1.0,1.0],
+      "maxScale": [1.0,1.0,1.0],
+      "category":"bed"
+    }
+    
+  ]
+}
