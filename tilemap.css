@@ -286,9 +286,9 @@ button.danger:hover {
 .layer-list {
     list-style: none;
     padding: 0;
-    max-height: 200px;
-    overflow-y: auto;
-    flex-grow: 1;
+    max-height: none;
+    min-height: 0;
+    flex: 1 1 auto;
     overflow-y: auto;
 }
 

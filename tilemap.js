@@ -220,6 +220,7 @@ class RemoveTileCommand extends Command
     }
 }
 
+// Logs detailed intersection information for selection debugging.
 function debugSelection(intersects)
 {
     console.log("Number of intersects:", intersects.length);
@@ -437,6 +438,7 @@ class TransformCommand extends Command
     }
 }
 
+// Returns detail scale multiplier.
 function getDetailScaleMultiplier(detailMesh)
 {
     if (!detailMesh.userData.isDetail) return detailMesh.scale.clone();
@@ -452,6 +454,7 @@ function getDetailScaleMultiplier(detailMesh)
     return new THREE.Vector3(defaultScale[0], defaultScale[1], defaultScale[2]);
 }
 
+// Returns effective dimensions.
 function getEffectiveDimensions(tileData, rotation)
 {
     // Handle details that might not have traditional size
@@ -466,6 +469,7 @@ function getEffectiveDimensions(tileData, rotation)
     return isRotated ? [h, w] : [w, h];
 }
 
+// Executes a command, appends it to history, and trims redo state.
 function executeCommand(command)
 {
     if (historyIndex < history.length - 1)
@@ -486,6 +490,7 @@ function executeCommand(command)
     updateHistoryButtons();
 }
 
+// Reverts the previous action.
 function undo()
 {
     if (historyIndex >= 0)
@@ -496,6 +501,7 @@ function undo()
     }
 }
 
+// Reapplies the next action in history.
 function redo()
 {
     if (historyIndex < history.length - 1)
@@ -506,6 +512,7 @@ function redo()
     }
 }
 
+// Refreshes undo/redo button enabled states based on history position.
 function updateHistoryButtons()
 {
     document.getElementById('undoButton').disabled = historyIndex < 0;
@@ -513,6 +520,7 @@ function updateHistoryButtons()
 }
 
 // --- Coordinate conversion ---
+// Converts grid cell coordinates to world coordinates.
 function cellToWorld(cellX, cellZ)
 {
     return {
@@ -521,6 +529,7 @@ function cellToWorld(cellX, cellZ)
     };
 }
 
+// Converts world coordinates to grid cell coordinates.
 function worldToCell(worldX, worldZ)
 {
     return {
@@ -529,6 +538,7 @@ function worldToCell(worldX, worldZ)
     };
 }
 
+// Calculates the drawable viewport size from the current UI layout.
 function getViewportDimensions()
 {
     const leftWidth = document.getElementById('sidebar')?.offsetWidth || 0;
@@ -542,6 +552,7 @@ function getViewportDimensions()
     };
 }
 
+// Initializes the editor scene, UI bindings, and runtime systems.
 function init()
 {
     scene = new THREE.Scene();
@@ -642,6 +653,7 @@ function init()
     animate();
 }
 
+// Initializes transform controls.
 function initTransformControls()
 {
     // Create transform controls
@@ -818,6 +830,7 @@ function initTransformControls()
     scene.add(transformControls);
 }
 
+// Clamps detail scale.
 function clampDetailScale(mesh, actualScale)
 {
     if (!mesh.userData.isDetail || !mesh.userData.tileData) return actualScale;
@@ -834,6 +847,7 @@ function clampDetailScale(mesh, actualScale)
 }
 
 // --- The Global Animation Loop (Fixed) ---
+// Runs the main animation and render loop.
 function animate()
 {
     requestAnimationFrame(animate);
@@ -858,6 +872,7 @@ function animate()
     }
 }
 
+// Sets up post processing.
 function setupPostProcessing()
 {
     const viewport = document.getElementById('viewport');
@@ -889,6 +904,7 @@ function setupPostProcessing()
     }
 }
 
+// Applies ambient occlusion settings.
 function applyAmbientOcclusionSettings()
 {
     if (!ssaoPass) return;
@@ -904,6 +920,7 @@ function applyAmbientOcclusionSettings()
     ssaoPass.maxDistance = settings.aoMaxDistance;
 }
 
+// Updates compass position.
 function updateCompassPosition()
 {
     if (compassGroup)
@@ -913,6 +930,7 @@ function updateCompassPosition()
 }
 
 // --- Setup & Events ---
+// Registers DOM and keyboard event handlers for editor interaction.
 function setupEventListeners()
 {
     // Tool Buttons
@@ -1299,6 +1317,7 @@ function setupEventListeners()
     window.addEventListener('resize', onWindowResize);
 }
 
+// Sets interaction mode.
 function setInteractionMode(mode)
 {
     // Only set interaction mode if we're in the correct editor mode
@@ -1350,6 +1369,7 @@ function setInteractionMode(mode)
 }
 
 
+// Resets detail transform.
 function resetDetailTransform()
 {
     if (selectedPlacedTile && selectedPlacedTile.userData.isDetail)
@@ -1377,6 +1397,7 @@ function resetDetailTransform()
     }
 }
 
+// Updates editor mode ui.
 function updateEditorModeUI()
 {
     // Update mode buttons
@@ -1410,6 +1431,7 @@ function updateEditorModeUI()
     updateModeIndicator();
 }
 
+// Toggles transform mode.
 function toggleTransformMode()
 {
     if (!transformControls || !transformControls.object)
@@ -1425,6 +1447,7 @@ function toggleTransformMode()
     setTransformMode(modes[nextIndex]);
 }
 
+// Sets transform mode.
 function setTransformMode(mode)
 {
     if (editorMode !== 'details') return;
@@ -1472,6 +1495,7 @@ function setTransformMode(mode)
     //  showNotification(`Transform: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`, 'info');
 }
 
+// Toggles snap.
 function toggleSnap()
 {
     snapEnabled = !snapEnabled;
@@ -1509,6 +1533,7 @@ function toggleSnap()
     // showNotification(`Snap: ${snapEnabled ? 'ON' : 'OFF'}`, 'info');
 }
 
+// Updates mode indicator.
 function updateModeIndicator()
 {
     let statusText = `${editorMode === 'tiles' ? 'Tile' : 'Detail'} Mode: `;
@@ -1543,6 +1568,7 @@ function updateModeIndicator()
 }
 
 
+// Sets preset view.
 function setPresetView(theta, phi)
 {
     cameraDistance = 60;
@@ -1551,6 +1577,7 @@ function setPresetView(theta, phi)
     updateCameraPosition();
 }
 
+// Toggles grid.
 function toggleGrid()
 {
     if (gridHelper)
@@ -1574,6 +1601,7 @@ function toggleGrid()
 }
 // --- Layer Logic ---
 
+// Updates layer panel.
 function updateLayerPanel()
 {
     const layerListEl = document.getElementById('layerList');
@@ -1688,6 +1716,7 @@ function updateLayerPanel()
     if (delBtn) delBtn.disabled = layerMap.size <= 1;
 }
 
+// Updates grid position.
 function updateGridPosition()
 {
     if (!gridHelper) return;
@@ -1721,6 +1750,7 @@ function updateGridPosition()
     animateGridMove();
 }
 
+// Adds a new editable layer and refreshes layer UI state.
 function addLayer()
 {
     // Find the next available layer number
@@ -1759,6 +1789,7 @@ function addLayer()
     updateGridPosition();
 }
 
+// Deletes the currently selected layer when allowed and updates layer state.
 function deleteLayer()
 {
     if (layerMap.size <= 1) return;
@@ -1813,6 +1844,7 @@ function deleteLayer()
     updateGridPosition();
 }
 
+// Toggles layer visibility.
 function toggleLayerVisibility(layerNum, isVisible)
 {
     scene.traverse(object =>
@@ -1824,6 +1856,7 @@ function toggleLayerVisibility(layerNum, isVisible)
     });
 }
 
+// Toggles detail layer visibility.
 function toggleDetailLayerVisibility(isVisible)
 {
     detailLayerVisible = isVisible;
@@ -1841,6 +1874,7 @@ function toggleDetailLayerVisibility(isVisible)
 
 // --- Camera & Walk Mode ---
 
+// Toggles first-person walk mode on or off.
 function toggleWalk()
 {
     walkMode = !walkMode;
@@ -1897,6 +1931,7 @@ document.addEventListener('mousemove', (e) =>
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
+// Updates walk-mode movement and camera direction each frame.
 function updateWalker(delta)
 {
     if (!walkMode) return;
@@ -1948,55 +1983,118 @@ function updateWalker(delta)
     walkCamera.position.y = Math.max(0.5, walkCamera.position.y);
 }
 
+// Returns layout data.
 function getLayoutData()
 {
-    const exportData = {
-        tiles: [],
-        layers: [],
+    return buildLayoutData();
+}
+
+// Normalizes serialized tile rotation values to quarter-turn integers (0-3).
+function normalizeTileQuarterTurns(rotationValue)
+{
+    if (!Number.isFinite(rotationValue)) return 0;
+
+    // Already in quarter-turn format.
+    if (Number.isInteger(rotationValue) && rotationValue >= 0 && rotationValue <= 3)
+    {
+        return rotationValue;
+    }
+
+    // Legacy export sometimes stored very large integer turn counts.
+    if (Number.isInteger(rotationValue) && Math.abs(rotationValue) > 3)
+    {
+        return ((rotationValue % 4) + 4) % 4;
+    }
+
+    // Assume radians and snap to nearest 90 degrees to prevent 45°/off-grid rotations.
+    const quarterTurns = Math.round(rotationValue / (Math.PI / 2));
+    return ((quarterTurns % 4) + 4) % 4;
+}
+
+// Converts serialized tile rotation (int or radians) into snapped radians.
+function getSnappedTileRotationRadians(rotationValue)
+{
+    return normalizeTileQuarterTurns(rotationValue) * (Math.PI / 2);
+}
+
+// Builds a complete layout payload for autosave and manual save.
+function buildLayoutData()
+{
+    const layout = {
+        version: '2.2',
+        gridSize: GRID_SIZE,
         detailLayerVisible,
-        version: "1.1"
+        tiles: [],
+        details: [],
+        layers: []
     };
 
     const processed = new Set();
 
-    // Export Tiles
-    placedTiles.forEach(mesh =>
+    // Save grid tiles.
+    placedTiles.forEach(tile =>
     {
-        if (processed.has(mesh.uuid)) return;
-        processed.add(mesh.uuid);
+        if (!tile?.userData || processed.has(tile.userData.uuid) || tile.userData.isDetail) return;
 
-        if (mesh.userData.tileData)
+        processed.add(tile.userData.uuid);
+        const tileData = tile.userData.tileData;
+        const packId = tileData.packId?.split(':')[0] || 'unknown';
+
+        layout.tiles.push(
         {
-            // Convert rotation from radians to 0-3 integer
-            const radRotation = mesh.userData.rotation || 0;
-            const intRotation = Math.round((radRotation % (Math.PI * 2)) / (Math.PI / 2)) % 4;
-
-            exportData.tiles.push(
+            packId,
+            tileId: tileData.originalId || tileData.id.split(':')[1],
+            position:
             {
-                id: mesh.userData.tileData.originalId,
-                pack: mesh.userData.tileData.packId,
-                x: mesh.userData.position.cellX,
-                z: mesh.userData.position.cellZ,
-                layer: mesh.userData.position.layer,
-                rot: intRotation, // Store as integer 0-3 instead of radians
-                rotDeg: Math.round(radRotation * 180 / Math.PI) // Optional: keep for readability
-            });
-        }
+                x: tile.userData.position.cellX,
+                z: tile.userData.position.cellZ,
+                layer: tile.userData.position.layer
+            },
+            rotation: normalizeTileQuarterTurns(tile.userData.rotation || 0)
+        });
     });
 
-    // Export Layers (important for restoration)
+    // Save free-form details.
+    detailMeshes.forEach(mesh =>
+    {
+        if (!mesh?.userData || processed.has(mesh.userData.uuid)) return;
+
+        processed.add(mesh.userData.uuid);
+
+        const detailData = mesh.userData.tileData;
+        const packId = detailData.packId?.split(':')[0] || 'unknown';
+        const scale = mesh.userData.scale || new THREE.Vector3(1, 1, 1);
+
+        layout.details.push(
+        {
+            packId,
+            detailId: detailData.originalId || detailData.id.split(':')[1],
+            position:
+            {
+                x: mesh.position.x,
+                y: mesh.position.y,
+                z: mesh.position.z
+            },
+            rotation: mesh.rotation.y,
+            scale: [scale.x, scale.y, scale.z],
+            layer: mesh.userData.position.layer
+        });
+    });
+
+    // Export layer metadata for restoration.
     Array.from(layerMap.entries()).forEach(([num, data]) =>
     {
-        exportData.layers.push(
+        layout.layers.push(
         {
             num,
             ...data
         });
     });
 
-    return exportData;
+    return layout;
 }
 
+// Checks whether an auto-saved layout exists and is still valid.
 function checkAutoSave()
 {
     const savedData = localStorage.getItem(AUTOSAVE_KEY);
@@ -2027,6 +2125,7 @@ function checkAutoSave()
     return null;
 }
 
+// Saves the current layout to local storage automatically.
 function autoSave()
 {
     const layout = getLayoutData();
@@ -2042,12 +2141,14 @@ function autoSave()
 }
 
 
+// Starts the periodic auto-save timer.
 function setupAutoSave()
 {
     autoSave();
     setInterval(autoSave, AUTOSAVE_INTERVAL);
 }
 // Add at global level or with other helper functions
+// Draws a temporary line in the scene to visualize the raycast direction.
 function visualizeRaycast(raycaster, length = 10, color = 0xff0000, duration = 1000)
 {
     // Create an arrow helper
@@ -2081,6 +2182,7 @@ function visualizeRaycast(raycaster, length = 10, color = 0xff0000, duration = 1
     return arrow;
 }
 
+// Logs detailed raycast diagnostics for troubleshooting selection.
 function debugRaycastDetails()
 {
     console.log('=== DETAIL RAYCAST DEBUG ===');
@@ -2143,6 +2245,7 @@ function debugRaycastDetails()
     console.log('===============================');
 }
 
+// Handles mouse-down interactions in the editor viewport.
 function onMouseDown(event)
 {
     if (walkMode) return;
@@ -2276,6 +2379,7 @@ function onMouseDown(event)
 }
 
 
+// Handles mouse-move interactions in the editor viewport.
 function onMouseMove(event)
 {
     if (walkMode || isTransforming) return; // NEW: Skip if transforming
@@ -2367,6 +2471,7 @@ function onMouseMove(event)
     }
 }
 
+// Updates tile preview.
 function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
 {
     const tileToUse = tileData || selectedPaletteTile;
@@ -2424,6 +2529,7 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
     updatePreviewGhostAppearance();
 }
 
+// Updates detail preview.
 function updateDetailPreview(detailData, hitPoint)
 {
     removeDetailPreview();
@@ -2469,6 +2575,7 @@ function updateDetailPreview(detailData, hitPoint)
     scene.add(detailPreview);
 }
 
+// Handles mouse-up interactions and finalizes drag/place actions.
 async function onMouseUp(event)
 {
     if (walkMode) return;
@@ -2545,6 +2652,7 @@ async function onMouseUp(event)
     draggedTile = null;
 }
 
+// Handles mouse-wheel zoom input.
 function onMouseWheel(event)
 {
     const zoomSpeed = 0.1;
@@ -2553,6 +2661,7 @@ function onMouseWheel(event)
     updateCameraPosition();
 }
 
+// Checks whether a tile footprint collides with existing tiles on a layer.
 function checkCollision(x, z, layer, w, h, excludeMesh = null)
 {
     for (let i = 0; i < w; i++)
@@ -2570,6 +2679,7 @@ function checkCollision(x, z, layer, w, h, excludeMesh = null)
     return false;
 }
 
+// Builds and configures a tile mesh for a target cell placement.
 async function prepareTileMesh(cellX, cellZ, layer, tileData, rotationOverride = null)
 {
     const width = tileData.size[0];
@@ -2753,6 +2863,7 @@ async function prepareTileMesh(cellX, cellZ, layer, tileData, rotationOverride =
     return mesh;
 }
 
+// Updates preview ghost.
 function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
 {
     const tileToUse = overrideTile || selectedPaletteTile;
@@ -2830,6 +2941,7 @@ function updatePreviewGhost(overrideTile, excludeMesh = null, hitPoint = null)
     }
 }
 
+// Updates preview ghost appearance.
 function updatePreviewGhostAppearance()
 {
     if (!previewGhost || !previewGhost.material) return;
@@ -2846,6 +2958,7 @@ function updatePreviewGhostAppearance()
     previewGhost.material.needsUpdate = true;
 }
 
+// Removes preview ghost.
 function removePreviewGhost()
 {
     if (previewGhost)
@@ -2857,6 +2970,7 @@ function removePreviewGhost()
     }
 }
 
+// Returns root tile mesh.
 function getRootTileMesh(intersectedObject)
 {
     let obj = intersectedObject;
@@ -2879,6 +2993,7 @@ function getRootTileMesh(intersectedObject)
     return intersectedObject;
 }
 
+// Raycasts the scene and returns tile/detail intersections under the cursor.
 function raycastTiles()
 {
     const tileMeshes = [];
@@ -2907,6 +3022,7 @@ function raycastTiles()
     return raycaster.intersectObjects(tileMeshes, true);
 }
 
+// Selects tile.
 function selectTile(tileMesh)
 {
     // Don't select if we're in the wrong mode
@@ -2952,6 +3068,7 @@ function selectTile(tileMesh)
     updateModeIndicator();
 }
 
+// Deselects tile.
 function deselectTile()
 {
     if (selectedPlacedTile)
@@ -2977,6 +3094,7 @@ function deselectTile()
     }
 }
 
+// Rotates selected tile.
 function rotateSelectedTile()
 {
     if (!selectedPlacedTile) return;
@@ -3015,6 +3133,7 @@ function rotateSelectedTile()
     executeCommand(new RotateTileCommand(selectedPlacedTile, currentRot, newRot));
 }
 
+// Creates fallback mesh.
 function createFallbackMesh(tileData)
 {
     const geometry = new THREE.BoxGeometry(
@@ -3037,6 +3156,7 @@ function createFallbackMesh(tileData)
     return mesh;
 }
 
+// Plays a short placement animation for newly spawned tile meshes.
 function animateTilePlacement(mesh)
 {
     const originalScale = mesh.scale.x;
@@ -3054,6 +3174,7 @@ function animateTilePlacement(mesh)
     animatePlacementStep();
 }
 
+// Sets up controls.
 function setupControls()
 {
     const viewport = renderer.domElement;
@@ -3070,6 +3191,7 @@ function setupControls()
     viewport.addEventListener('contextmenu', e => e.preventDefault());
 }
 
+// Creates or recreates the editable grid helper at the requested height.
 function createGrid(layerY = 0)
 {
     // Remove existing grid if it exists
@@ -3104,6 +3226,7 @@ function createGrid(layerY = 0)
     gridHelper.visible = isGridVisible;
 }
 
+// Updates the orbital editor camera position from camera control values.
 function updateCameraPosition()
 {
     camera.position.set(
@@ -3114,6 +3237,7 @@ function updateCameraPosition()
     camera.lookAt(cameraTarget);
 }
 
+// Handles viewport resize updates for camera and renderer.
 function onWindowResize()
 {
     const { width, height } = getViewportDimensions();
@@ -3132,12 +3256,14 @@ function onWindowResize()
     }
 }
 
+// Places detail at position.
 function placeDetailAtPosition(detailData, position, rotation = 0, scale = [1, 1, 1])
 {
     // Create a detail mesh at exact position (not grid-snapped)
     return prepareDetailMesh(position.x, position.z, currentLayer, detailData, rotation, scale);
 }
 
+// Builds and configures a detail mesh for free-form placement.
 async function prepareDetailMesh(worldX, worldZ, layer, detailData, rotation = 0, scaleMultiplier = null)
 {
     try
@@ -3234,6 +3360,7 @@ async function prepareDetailMesh(worldX, worldZ, layer, detailData, rotation = 0
     }
 }
 
+// Calculates actual scale.
 function calculateActualScale(detailMesh)
 {
     if (!detailMesh.userData.isDetail) return detailMesh.scale;
@@ -3249,7 +3376,7 @@ function calculateActualScale(detailMesh)
     );
 }
 
-// Update the placeDetailMesh function to support free placement
+// Creates, configures, and places a detail mesh into the scene.
 async function placeDetailMesh(detailData, position, rotation = 0, scale = null)
 {
     console.log('📦 Placing detail:', detailData.name);
@@ -3355,6 +3482,7 @@ async function placeDetailMesh(detailData, position, rotation = 0, scale = null)
     }
 }
 
+// Resets detail scale.
 function resetDetailScale()
 {
     if (selectedPlacedTile && selectedPlacedTile.userData.isDetail)
@@ -3377,6 +3505,7 @@ function resetDetailScale()
     }
 }
 
+// Fetches a tile-pack JSON file from a URL and loads it into the editor.
 async function loadTilePackFromURL(url)
 {
     try
@@ -3393,6 +3522,7 @@ async function loadTilePackFromURL(url)
     }
 }
 
+// Fetches a tile-pack JSON file from a URL and loads it into the editor.
 async function loadTilePackFromURL(url)
 {
     try
@@ -3409,6 +3539,7 @@ async function loadTilePackFromURL(url)
     }
 }
 
+// Loads tile pack.
 function loadTilePack(tilePack)
 {
     const packId = tilePack.id || THREE.MathUtils.generateUUID();
@@ -3462,6 +3593,7 @@ function loadTilePack(tilePack)
     showNotification(`Loaded pack: ${tilePack.name}`);
 }
 
+// Creates category tabs.
 function createCategoryTabs()
 {
     const container = document.getElementById('asset-browser');
@@ -3476,6 +3608,7 @@ function createCategoryTabs()
     container.insertBefore(categoryTabs, tileGrid);
 }
 
+// Updates category tabs.
 function updateCategoryTabs()
 {
     const categoryTabs = document.getElementById('categoryTabs');
@@ -3516,6 +3649,7 @@ function updateCategoryTabs()
     });
 }
 
+// Filters by category.
 function filterByCategory(category)
 {
     // Update active tab
@@ -3542,6 +3676,7 @@ function filterByCategory(category)
     });
 }
 
+// Creates pack tabs.
 function createPackTabs()
 {
     const container = document.getElementById('packTabs');
@@ -3562,6 +3697,7 @@ function createPackTabs()
     });
 }
 
+// Updates tile grid.
 function updateTileGrid()
 {
     const grid = document.getElementById('tileGrid');
@@ -3746,6 +3882,7 @@ function updateTileGrid()
     }
 }
 
+// Switches editor mode.
 function switchEditorMode(mode)
 {
     if (editorMode === mode) return;
@@ -3782,6 +3919,7 @@ function switchEditorMode(mode)
     showNotification(`Switched to ${mode === 'tiles' ? 'Tile' : 'Detail'} Mode`, 'info');
 }
 
+// Sets up drag and drop.
 function setupDragAndDrop()
 {
     const grid = document.getElementById('tileGrid');
@@ -3931,6 +4069,7 @@ function setupDragAndDrop()
     });
 }
 
+// Removes detail preview.
 function removeDetailPreview()
 {
     if (detailPreview)
@@ -3942,6 +4081,7 @@ function removeDetailPreview()
     }
 }
 
+// Displays a transient notification message in the UI.
 function showNotification(msg, type = 'success')
 {
     const notif = document.createElement('div');
@@ -3959,6 +4099,7 @@ function showNotification(msg, type = 'success')
     setTimeout(() => notif.remove(), 3000);
 }
 
+// Removes all placed tiles and details from the scene.
 function clearGrid()
 {
     if (!confirm('Are you sure you want to clear all tiles and details?')) return;
@@ -4007,86 +4148,10 @@ function clearGrid()
     showNotification('Grid cleared');
 }
 
+// Saves layout.
 function saveLayout()
 {
-    const layout = {
-        version: '2.1',
-        gridSize: GRID_SIZE,
-        layers: maxLayer,
-        detailLayerVisible,
-        tiles: [],
-        details: [] // Use 'details' not 'detailMeshes'
-    };
-
-    const processed = new Set();
-
-    // Save grid tiles
-    placedTiles.forEach(tile =>
-    {
-        if (processed.has(tile.userData.uuid)) return;
-        if (!tile.userData.isDetail)
-        {
-            processed.add(tile.userData.uuid);
-            const tileData = tile.userData.tileData;
-            const packId = tileData.packId?.split(':')[0] || 'unknown';
-
-            layout.tiles.push(
-            {
-                packId: packId,
-                tileId: tileData.originalId || tileData.id.split(':')[1],
-                position:
-                {
-                    x: tile.userData.position.cellX,
-                    z: tile.userData.position.cellZ,
-                    layer: tile.userData.position.layer
-                },
-                rotation: tile.userData.rotation
-            });
-        }
-    });
-
-    // Save detail meshes - FIXED scale saving
-    detailMeshes.forEach(mesh =>
-    {
-        if (processed.has(mesh.userData.uuid)) return;
-        processed.add(mesh.userData.uuid);
-
-        const detailData = mesh.userData.tileData;
-        const packId = detailData.packId?.split(':')[0] || 'unknown';
-
-        // CRITICAL FIX: Get the stored scale multiplier, not the mesh.scale
-        let scaleMultiplier = [1, 1, 1];
-
-        if (mesh.userData.scale)
-        {
-            // This is the stored Vector3 with the user's scale multiplier
-            scaleMultiplier = [
-                mesh.userData.scale.x,
-                mesh.userData.scale.y,
-                mesh.userData.scale.z
-            ];
-        }
-        else if (detailData.defaultScale)
-        {
-            // Fallback to default
-            scaleMultiplier = detailData.defaultScale;
-        }
-
-        layout.details.push(
-        {
-            packId: packId,
-            detailId: detailData.originalId || detailData.id.split(':')[1],
-            position:
-            {
-                x: mesh.position.x,
-                y: mesh.position.y,
-                z: mesh.position.z
-            },
-            rotation: mesh.rotation.y,
-            scale: scaleMultiplier, // Save the multiplier, not the actual scale
-            layer: mesh.userData.position.layer
-        });
-    });
+    const layout = buildLayoutData();
 
     const blob = new Blob([JSON.stringify(layout, null, 2)],
     {
@@ -4102,6 +4167,7 @@ function saveLayout()
     showNotification(`Saved ${layout.tiles.length} tiles and ${layout.details.length} details`);
 }
 
+// Handles layout load.
 function handleLayoutLoad(e)
 {
     const file = e.target.files[0];
@@ -4126,6 +4192,7 @@ function handleLayoutLoad(e)
     reader.readAsText(file);
 }
 
+// Loads a saved layout into the scene and restores editor state.
 async function loadLayout(layoutData, skipConfirm = false)
 {
     if (!layoutData.tiles && !layoutData.details)
@@ -4171,38 +4238,33 @@ async function loadLayout(layoutData, skipConfirm = false)
     {
         for (const savedTile of layoutData.tiles)
         {
-            const internalId = `${savedTile.pack}:${savedTile.id}`;
+            const normalizedPackId = savedTile.packId || savedTile.pack;
+            const normalizedTileId = savedTile.tileId || savedTile.id;
+            const tilePosition = savedTile.position ||
+            {
+                x: savedTile.x,
+                z: savedTile.z,
+                layer: savedTile.layer
+            };
+
+            const internalId = `${normalizedPackId}:${normalizedTileId}`;
             const tileDef = tiles.get(internalId);
 
             if (tileDef)
             {
                 try
                 {
-                    let rotation = 0;
-                    if (typeof savedTile.rot === 'number')
-                    {
-                        if (savedTile.rot >= 0 && savedTile.rot <= 3 && Number.isInteger(savedTile.rot))
-                        {
-                            rotation = savedTile.rot * (Math.PI / 2);
-                        }
-                        else if (savedTile.rot < Math.PI * 4)
-                        {
-                            rotation = savedTile.rot % (Math.PI * 2);
-                        }
-                        else
-                        {
-                            rotation = (savedTile.rot % 4) * (Math.PI / 2);
-                        }
-                    }
+                    const normalizedRotation = savedTile.rotation ?? savedTile.rot;
+                    const rotation = getSnappedTileRotationRadians(normalizedRotation);
 
-                    const mesh = await prepareTileMesh(savedTile.x, savedTile.z, savedTile.layer, tileDef, rotation);
+                    const mesh = await prepareTileMesh(tilePosition.x, tilePosition.z, tilePosition.layer, tileDef, rotation);
                     if (mesh)
                     {
                         mesh.rotation.y = rotation;
                         mesh.userData.rotation = rotation;
                         scene.add(mesh);
 
-                        const key = `${savedTile.x},${savedTile.z},${savedTile.layer}`;
+                        const key = `${tilePosition.x},${tilePosition.z},${tilePosition.layer}`;
                         placedTiles.set(key, mesh);
 
                         if (mesh.userData.occupiedCells)
@@ -4436,6 +4498,7 @@ class MoveTileCommand extends Command
     }
 }
 // Add these helper functions near the other utility functions (around line 140)
+// Applies model scale.
 function applyModelScale(mesh)
 {
     if (MODEL_SCALE !== 1.0)
@@ -4445,6 +4508,7 @@ function applyModelScale(mesh)
     return mesh;
 }
 
+// Removes model scale.
 function removeModelScale(mesh)
 {
     if (MODEL_SCALE !== 1.0)
@@ -4454,16 +4518,19 @@ function removeModelScale(mesh)
     return mesh;
 }
 
+// Scales a vector from editor-space units into model-space units.
 function scaleVectorForModel(vector)
 {
     return vector.multiplyScalar(MODEL_SCALE);
 }
 
+// Converts a vector from model-space units back to export/editor units.
 function unscaleVectorForExport(vector)
 {
     return vector.multiplyScalar(MODEL_SCALE_INVERSE);
 }
 
+// Returns bounding box center.
 function getBoundingBoxCenter(boundsMin, boundsMax)
 {
     return {
@@ -4473,6 +4540,7 @@ function getBoundingBoxCenter(boundsMin, boundsMax)
     };
 }
 
+// Loads a 3D model and normalizes it for use in the editor.
 function loadMesh(url)
 {
     // 1. Check Cache
@@ -4558,6 +4626,7 @@ function loadMesh(url)
  */
 
 
+// Exports the current scene as a combined mesh file.
 async function exportAsMesh()
 {
     if (placedTiles.size === 0)
@@ -4819,6 +4888,7 @@ async function exportAsMesh()
     }
 }
 
+// Downloads file.
 function downloadFile(content, filename, mimeType)
 {
     const blob = new Blob([content],
@@ -4837,6 +4907,7 @@ function downloadFile(content, filename, mimeType)
     URL.revokeObjectURL(url);
 }
 
+// Disposes mesh.
 function disposeMesh(mesh)
 {
     mesh.traverse((child) =>
@@ -4859,17 +4930,20 @@ function disposeMesh(mesh)
     });
 }
 
+// Opens the settings window.
 function openSettings()
 {
     document.getElementById('settingsWindow').style.display = 'flex';
     loadSettingsToUI();
 }
 
+// Closes the settings window.
 function closeSettings()
 {
     document.getElementById('settingsWindow').style.display = 'none';
 }
 
+// Loads current settings values into the settings panel controls.
 function loadSettingsToUI()
 {
     // Tone Mapping
@@ -4917,6 +4991,7 @@ function loadSettingsToUI()
     document.getElementById('autosaveValue').textContent = settings.autosaveInterval + 's';
 }
 
+// Applies current settings to renderer, lighting, and scene behavior.
 function applySettings()
 {
     // Tone Mapping
@@ -5029,6 +5104,7 @@ function applySettings()
     closeSettings();
 }
 
+// Saves current editor settings to local storage.
 function saveSettingsToStorage()
 {
     try
@@ -5044,11 +5120,12 @@ function saveSettingsToStorage()
 /**
  * Export for Second Life with all offsets properly calculated
  */
+// Exports the current scene layout to the text format expected by Second Life.
 function exportForSecondLife()
 {
-    if (placedTiles.size === 0)
+    if (placedTiles.size === 0 && detailMeshes.size === 0)
     {
-        showNotification("No tiles to export!", "warning");
+        showNotification("No tiles/details to export!", "warning");
         return;
     }
 
@@ -5066,98 +5143,148 @@ function exportForSecondLife()
         .map(([n]) => n)
     );
 
-    const processed = new Set();
-    const lines = [];
+    const tileHeader = 'name,x,y,z,rotation';
+    const detailHeader = 'name,positionX,positionY,positionZ,scaleX,scaleY,scaleZ,rotationX,rotationY,rotationZ,rotationW';
+    const tileLines = [];
+    const detailLines = [];
+    const processedTiles = new Set();
 
+    const formatTileLine = (name, position, rotationInt) =>
+    {
+        return `${name},` +
+            `${position.x.toFixed(3)},` +
+            `${position.y.toFixed(3)},` +
+            `${position.z.toFixed(3)},` +
+            `${rotationInt}`;
+    };
+
+    const formatDetailLine = (name, position, scale, quaternion) =>
+    {
+        return `${name},` +
+            `${position.x.toFixed(3)},` +
+            `${position.y.toFixed(3)},` +
+            `${position.z.toFixed(3)},` +
+            `${scale.x.toFixed(4)},` +
+            `${scale.y.toFixed(4)},` +
+            `${scale.z.toFixed(4)},` +
+            `${quaternion.x.toFixed(6)},` +
+            `${quaternion.y.toFixed(6)},` +
+            `${quaternion.z.toFixed(6)},` +
+            `${quaternion.w.toFixed(6)}`;
+    };
+
+    // Export grid tiles first in SL legacy format: name,x,y,z,rotation(0-3).
     placedTiles.forEach(mesh =>
     {
-        if (!mesh || processed.has(mesh.uuid)) return;
-        processed.add(mesh.uuid);
+        if (!mesh || !mesh.userData || mesh.userData.isDetail) return;
+        if (processedTiles.has(mesh.uuid)) return;
+        processedTiles.add(mesh.uuid);
 
         const tileData = mesh.userData.tileData;
         const pos = mesh.userData.position;
-        if (!tileData || !pos) return;
-        if (mesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(pos.layer || 1)) return;
+        if (!tileData || !pos || !visibleLayers.has(pos.layer || 1)) return;
 
         const rot = mesh.rotation.y || 0;
-
-        // --- effective footprint size (rotation aware)
         const [w, h] = getEffectiveDimensions(tileData, rot);
 
-        // --- footprint center in world space
         const wp = cellToWorld(
             pos.cellX + w / 2 - 0.5,
             pos.cellZ + h / 2 - 0.5
         );
 
-        let worldPos = new THREE.Vector3(wp.x, 0, wp.z);
+        const worldPos = new THREE.Vector3(wp.x, 0, wp.z);
 
-        // --- pivot offset (SL uses bounding box center)
         const pivot = tileData.pivotOffset || mesh.userData.pivotOffset;
-        let pivotVec = new THREE.Vector3(
+        const pivotVec = new THREE.Vector3(
             pivot?.x || 0,
             pivot?.y || 0,
-            (pivot?.z || 0) // ← NEGATE Z component to match coordinate flip!
+            pivot?.z || 0
         );
         pivotVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), rot);
 
-        // --- Apply visual offset if any
         const visualOffset = tileData.visualOffset || [0, 0, 0];
         worldPos.x += visualOffset[0];
         worldPos.z += visualOffset[2];
-
-        // --- final SL pivot position: footprint center + pivot offset
-        // For footprint_center pivot, we're already at the center
-        // For 1x1 tiles: w=1, h=1 → no additional offset needed
-        // For multi-cell tiles: The center is already correct
         worldPos.add(pivotVec);
 
-        // --- Y position (include visual offset in Y)
         const layerY = (pos.layer - 1) * LAYER_HEIGHT;
         const yOffset = tileData.yOffset || 0;
         const finalY = layerY + yOffset + (visualOffset[1] || 0);
 
-        // --- Convert to Second Life coordinates
-        const slX = (worldPos.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR;
-        const slY = (-worldPos.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR;
-        const slZ = finalY * SL_CONFIG.SCALE_FACTOR;
+        const slPosition = new THREE.Vector3(
+            (worldPos.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            (-worldPos.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            finalY * SL_CONFIG.SCALE_FACTOR
+        );
 
-        // --- rotation in degrees
-        let rotDeg = (rot * 180 / Math.PI) % 360;
-        if (rotDeg < 0) rotDeg += 360;
-        rotDeg = (rotDeg + SL_CONFIG.ROTATION_OFFSET) % 360;
+        let rotationInt = Math.round((rot % (Math.PI * 2)) / (Math.PI / 2));
+        rotationInt = ((rotationInt % 4) + 4) % 4;
 
         const name = String(
             tileData.originalId ||
             tileData.id ||
             tileData.name ||
-            "tile"
+            'tile'
         );
 
-        lines.push(
-            `${name},` +
-            `${slX.toFixed(3)},` +
-            `${slY.toFixed(3)},` +
-            `${slZ.toFixed(3)},` +
-            `${rotDeg.toFixed(1)}`
-        );
+        tileLines.push(formatTileLine(name, slPosition, rotationInt));
     });
 
-    // --- download
-    const blob = new Blob([lines.join("\n")],
+    // Export details last.
+    detailMeshes.forEach(mesh =>
     {
-        type: "text/plain"
+        if (!mesh || !mesh.userData || !mesh.userData.isDetail) return;
+
+        const detailData = mesh.userData.tileData;
+        const pos = mesh.userData.position;
+        if (!detailData || !pos) return;
+        if (!detailLayerVisible || !visibleLayers.has(pos.layer || 1)) return;
+
+        const slPosition = new THREE.Vector3(
+            (mesh.position.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            (-mesh.position.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            mesh.position.y * SL_CONFIG.SCALE_FACTOR
+        );
+
+        const detailScale = mesh.userData.scale ? mesh.userData.scale.clone() : new THREE.Vector3(1, 1, 1);
+        const rotQuat = mesh.quaternion.clone();
+
+        const name = String(
+            detailData.originalId ||
+            detailData.id ||
+            detailData.name ||
+            'detail'
+        );
+
+        detailLines.push(formatDetailLine(name, slPosition, detailScale, rotQuat));
+    });
+
+    const lines = [
+        '# --- Tiles ---',
+        tileHeader,
+        ...tileLines,
+        '',
+        '# ------------------------------',
+        '# --- Details (after tiles) ---',
+        detailHeader,
+        ...detailLines
+    ];
+
+    const blob = new Blob([lines.join('\n')],
+    {
+        type: 'text/plain'
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = "secondlife_export.txt";
+    a.download = 'secondlife_export.txt';
     a.click();
     URL.revokeObjectURL(url);
 
-    showNotification(`Exported ${lines.length} tiles`);
+    showNotification(`Exported ${tileLines.length} tiles and ${detailLines.length} details`);
 }
 
+// Loads persisted editor settings from local storage.
 function loadSettingsFromStorage()
 {
     try
@@ -5176,6 +5303,7 @@ function loadSettingsFromStorage()
     }
 }
 
+// Resets settings to their default values and reapplies them.
 function resetSettingsToDefaults()
 {
     if (!confirm("Reset all settings to defaults?")) return;
@@ -5208,6 +5336,7 @@ function resetSettingsToDefaults()
     showNotification("Settings reset to defaults");
 }
 
+// Creates the 3D compass helper with axis markers and labels.
 async function create3DCompass()
 {
     // Remove existing compass if any
@@ -5299,6 +5428,7 @@ async function create3DCompass()
     scene.add(compassGroup);
 }
 
+// Creates text mesh.
 function createTextMesh(text, font, material, size = 3)
 {
     const textGeometry = new THREE.TextGeometry(text,
@@ -5319,6 +5449,7 @@ function createTextMesh(text, font, material, size = 3)
     return textMesh;
 }
 
+// Creates fallback compass.
 function createFallbackCompass(gridHalfSize, compassHeight, compassOffset)
 {
     // Fallback using basic shapes if font loading fails
@@ -5372,6 +5503,7 @@ function createFallbackCompass(gridHalfSize, compassHeight, compassOffset)
     createCanvasTextMarker('W', -gridHalfSize - compassOffset, compassHeight, 0.5, 0x4fc3f7);
 }
 
+// Creates canvas text marker.
 function createCanvasTextMarker(text, x, y, z, color)
 {
     const canvas = document.createElement('canvas');
@@ -5413,6 +5545,7 @@ function createCanvasTextMarker(text, x, y, z, color)
     compassGroup.add(mesh);
 }
 
+// Creates simple text.
 function createSimpleText(text, size = 1)
 {
     // Create simple text using sprites if font not available
@@ -5443,6 +5576,7 @@ function createSimpleText(text, size = 1)
     return sprite;
 }
 
+// Creates text backgrounds.
 function createTextBackgrounds(group, gridHalfSize, compassHeight)
 {
     // Add subtle planes behind text for better readability
@@ -5481,6 +5615,7 @@ function createTextBackgrounds(group, gridHalfSize, compassHeight)
     group.add(westBg);
 }
 
+// Analyzes a tile mesh to estimate a visual offset for grid alignment.
 async function analyzeTileVisualOffset(tileData)
 {
     if (!tileData.mesh || tileData.visualOffset) return;
@@ -5519,6 +5654,7 @@ async function analyzeTileVisualOffset(tileData)
  * @param {number} rotation - Current rotation in radians
  * @returns {THREE.Vector3} Offset vector
  */
+// Calculates visual offset.
 function calculateVisualOffset(mesh, tileData, rotation)
 {
     // 1. Get bounding box in LOCAL space (no rotation/position)
@@ -5559,6 +5695,7 @@ function calculateVisualOffset(mesh, tileData, rotation)
     return offset;
 }
 
+// Calculates pivot offset.
 function calculatePivotOffset(mesh)
 {
     // Get bounding box in LOCAL SPACE (no transforms)
@@ -5580,6 +5717,7 @@ function calculatePivotOffset(mesh)
     };
 }
 
+// Switches pack type.
 function switchPackType(type)
 {
     if (currentPackType === type) return;
@@ -5609,6 +5747,7 @@ function switchPackType(type)
     updateTileGrid();
 }
 
+// Updates pack list.
 function updatePackList()
 {
     const container = document.getElementById('packTabs');
@@ -5652,6 +5791,7 @@ function updatePackList()
     }
 }
 
+// Fetches a detail-pack JSON file from a URL and loads it into the editor.
 async function loadDetailPackFromURL(url)
 {
     try
@@ -5668,6 +5808,7 @@ async function loadDetailPackFromURL(url)
     }
 }
 
+// Loads detail pack.
 function loadDetailPack(detailPack)
 {
     const packId = detailPack.id || THREE.MathUtils.generateUUID();
@@ -5712,6 +5853,7 @@ function loadDetailPack(detailPack)
     showNotification(`Loaded detail pack: ${detailPack.name}`);
 }
 
+// Updates detail grid.
 function updateDetailGrid()
 {
     const grid = document.getElementById('tileGrid');
@@ -5796,6 +5938,7 @@ function updateDetailGrid()
     filterByCategoryForDetails(activeCategory);
 }
 
+// Updates category tabs for details.
 function updateCategoryTabsForDetails()
 {
     const categoryTabs = document.getElementById('categoryTabs');
@@ -5835,6 +5978,7 @@ function updateCategoryTabsForDetails()
     });
 }
 
+// Filters by category for details.
 function filterByCategoryForDetails(category)
 {
     // Update active tab
@@ -5861,6 +6005,7 @@ function filterByCategoryForDetails(category)
     });
 }
 
+// Auto-loads configured tile/detail packs and optional auto-saved layout data.
 async function autoLoadTilePacks(autoSavedLayout = null)
 {
     document.getElementById('loading').style.display = 'flex';
