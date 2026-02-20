@@ -1986,51 +1986,112 @@ function updateWalker(delta)
 // Returns layout data.
 function getLayoutData()
 {
-    const exportData = {
-        tiles: [],
-        layers: [],
+    return buildLayoutData();
+}
+
+// Normalizes serialized tile rotation values to quarter-turn integers (0-3).
+function normalizeTileQuarterTurns(rotationValue)
+{
+    if (!Number.isFinite(rotationValue)) return 0;
+
+    // Already in quarter-turn format.
+    if (Number.isInteger(rotationValue) && rotationValue >= 0 && rotationValue <= 3)
+    {
+        return rotationValue;
+    }
+
+    // Legacy export sometimes stored very large integer turn counts.
+    if (Number.isInteger(rotationValue) && Math.abs(rotationValue) > 3)
+    {
+        return ((rotationValue % 4) + 4) % 4;
+    }
+
+    // Assume radians and snap to nearest 90 degrees to prevent 45°/off-grid rotations.
+    const quarterTurns = Math.round(rotationValue / (Math.PI / 2));
+    return ((quarterTurns % 4) + 4) % 4;
+}
+
+// Converts serialized tile rotation (int or radians) into snapped radians.
+function getSnappedTileRotationRadians(rotationValue)
+{
+    return normalizeTileQuarterTurns(rotationValue) * (Math.PI / 2);
+}
+
+// Builds a complete layout payload for autosave and manual save.
+function buildLayoutData()
+{
+    const layout = {
+        version: '2.2',
+        gridSize: GRID_SIZE,
         detailLayerVisible,
-        version: "1.1"
+        tiles: [],
+        details: [],
+        layers: []
     };
 
     const processed = new Set();
 
-    // Export Tiles
-    placedTiles.forEach(mesh =>
+    // Save grid tiles.
+    placedTiles.forEach(tile =>
     {
-        if (processed.has(mesh.uuid)) return;
-        processed.add(mesh.uuid);
+        if (!tile?.userData || processed.has(tile.userData.uuid) || tile.userData.isDetail) return;
 
-        if (mesh.userData.tileData)
+        processed.add(tile.userData.uuid);
+        const tileData = tile.userData.tileData;
+        const packId = tileData.packId?.split(':')[0] || 'unknown';
+
+        layout.tiles.push(
         {
-            // Convert rotation from radians to 0-3 integer
-            const radRotation = mesh.userData.rotation || 0;
-            const intRotation = Math.round((radRotation % (Math.PI * 2)) / (Math.PI / 2)) % 4;
-
-            exportData.tiles.push(
+            packId,
+            tileId: tileData.originalId || tileData.id.split(':')[1],
+            position:
             {
-                id: mesh.userData.tileData.originalId,
-                pack: mesh.userData.tileData.packId,
-                x: mesh.userData.position.cellX,
-                z: mesh.userData.position.cellZ,
-                layer: mesh.userData.position.layer,
-                rot: intRotation, // Store as integer 0-3 instead of radians
-                rotDeg: Math.round(radRotation * 180 / Math.PI) // Optional: keep for readability
-            });
-        }
+                x: tile.userData.position.cellX,
+                z: tile.userData.position.cellZ,
+                layer: tile.userData.position.layer
+            },
+            rotation: normalizeTileQuarterTurns(tile.userData.rotation || 0)
+        });
     });
 
-    // Export Layers (important for restoration)
+    // Save free-form details.
+    detailMeshes.forEach(mesh =>
+    {
+        if (!mesh?.userData || processed.has(mesh.userData.uuid)) return;
+
+        processed.add(mesh.userData.uuid);
+
+        const detailData = mesh.userData.tileData;
+        const packId = detailData.packId?.split(':')[0] || 'unknown';
+        const scale = mesh.userData.scale || new THREE.Vector3(1, 1, 1);
+
+        layout.details.push(
+        {
+            packId,
+            detailId: detailData.originalId || detailData.id.split(':')[1],
+            position:
+            {
+                x: mesh.position.x,
+                y: mesh.position.y,
+                z: mesh.position.z
+            },
+            rotation: mesh.rotation.y,
+            scale: [scale.x, scale.y, scale.z],
+            layer: mesh.userData.position.layer
+        });
+    });
+
+    // Export layer metadata for restoration.
     Array.from(layerMap.entries()).forEach(([num, data]) =>
     {
-        exportData.layers.push(
+        layout.layers.push(
         {
             num,
             ...data
         });
     });
 
-    return exportData;
+    return layout;
 }
 
 // Checks whether an auto-saved layout exists and is still valid.
@@ -4090,84 +4151,7 @@ function clearGrid()
 // Saves layout.
 function saveLayout()
 {
-    const layout = {
-        version: '2.1',
-        gridSize: GRID_SIZE,
-        layers: maxLayer,
-        detailLayerVisible,
-        tiles: [],
-        details: [] // Use 'details' not 'detailMeshes'
-    };
-
-    const processed = new Set();
-
-    // Save grid tiles
-    placedTiles.forEach(tile =>
-    {
-        if (processed.has(tile.userData.uuid)) return;
-        if (!tile.userData.isDetail)
-        {
-            processed.add(tile.userData.uuid);
-            const tileData = tile.userData.tileData;
-            const packId = tileData.packId?.split(':')[0] || 'unknown';
-
-            layout.tiles.push(
-            {
-                packId: packId,
-                tileId: tileData.originalId || tileData.id.split(':')[1],
-                position:
-                {
-                    x: tile.userData.position.cellX,
-                    z: tile.userData.position.cellZ,
-                    layer: tile.userData.position.layer
-                },
-                rotation: tile.userData.rotation
-            });
-        }
-    });
-
-    // Save detail meshes - FIXED scale saving
-    detailMeshes.forEach(mesh =>
-    {
-        if (processed.has(mesh.userData.uuid)) return;
-        processed.add(mesh.userData.uuid);
-
-        const detailData = mesh.userData.tileData;
-        const packId = detailData.packId?.split(':')[0] || 'unknown';
-
-        // CRITICAL FIX: Get the stored scale multiplier, not the mesh.scale
-        let scaleMultiplier = [1, 1, 1];
-
-        if (mesh.userData.scale)
-        {
-            // This is the stored Vector3 with the user's scale multiplier
-            scaleMultiplier = [
-                mesh.userData.scale.x,
-                mesh.userData.scale.y,
-                mesh.userData.scale.z
-            ];
-        }
-        else if (detailData.defaultScale)
-        {
-            // Fallback to default
-            scaleMultiplier = detailData.defaultScale;
-        }
-
-        layout.details.push(
-        {
-            packId: packId,
-            detailId: detailData.originalId || detailData.id.split(':')[1],
-            position:
-            {
-                x: mesh.position.x,
-                y: mesh.position.y,
-                z: mesh.position.z
-            },
-            rotation: mesh.rotation.y,
-            scale: scaleMultiplier, // Save the multiplier, not the actual scale
-            layer: mesh.userData.position.layer
-        });
-    });
+    const layout = buildLayoutData();
 
     const blob = new Blob([JSON.stringify(layout, null, 2)],
     {
@@ -4254,38 +4238,33 @@ async function loadLayout(layoutData, skipConfirm = false)
     {
         for (const savedTile of layoutData.tiles)
         {
-            const internalId = `${savedTile.pack}:${savedTile.id}`;
+            const normalizedPackId = savedTile.packId || savedTile.pack;
+            const normalizedTileId = savedTile.tileId || savedTile.id;
+            const tilePosition = savedTile.position ||
+            {
+                x: savedTile.x,
+                z: savedTile.z,
+                layer: savedTile.layer
+            };
+
+            const internalId = `${normalizedPackId}:${normalizedTileId}`;
             const tileDef = tiles.get(internalId);
 
             if (tileDef)
             {
                 try
                 {
-                    let rotation = 0;
-                    if (typeof savedTile.rot === 'number')
-                    {
-                        if (savedTile.rot >= 0 && savedTile.rot <= 3 && Number.isInteger(savedTile.rot))
-                        {
-                            rotation = savedTile.rot * (Math.PI / 2);
-                        }
-                        else if (savedTile.rot < Math.PI * 4)
-                        {
-                            rotation = savedTile.rot % (Math.PI * 2);
-                        }
-                        else
-                        {
-                            rotation = (savedTile.rot % 4) * (Math.PI / 2);
-                        }
-                    }
+                    const normalizedRotation = savedTile.rotation ?? savedTile.rot;
+                    const rotation = getSnappedTileRotationRadians(normalizedRotation);
 
-                    const mesh = await prepareTileMesh(savedTile.x, savedTile.z, savedTile.layer, tileDef, rotation);
+                    const mesh = await prepareTileMesh(tilePosition.x, tilePosition.z, tilePosition.layer, tileDef, rotation);
                     if (mesh)
                     {
                         mesh.rotation.y = rotation;
                         mesh.userData.rotation = rotation;
                         scene.add(mesh);
 
-                        const key = `${savedTile.x},${savedTile.z},${savedTile.layer}`;
+                        const key = `${tilePosition.x},${tilePosition.z},${tilePosition.layer}`;
                         placedTiles.set(key, mesh);
 
                         if (mesh.userData.occupiedCells)
@@ -5144,9 +5123,9 @@ function saveSettingsToStorage()
 // Exports the current scene layout to the text format expected by Second Life.
 function exportForSecondLife()
 {
-    if (placedTiles.size === 0)
+    if (placedTiles.size === 0 && detailMeshes.size === 0)
     {
-        showNotification("No tiles to export!", "warning");
+        showNotification("No tiles/details to export!", "warning");
         return;
     }
 
@@ -5164,96 +5143,145 @@ function exportForSecondLife()
         .map(([n]) => n)
     );
 
-    const processed = new Set();
-    const lines = [];
+    const tileHeader = 'name,x,y,z,rotation';
+    const detailHeader = 'name,positionX,positionY,positionZ,scaleX,scaleY,scaleZ,rotationX,rotationY,rotationZ,rotationW';
+    const tileLines = [];
+    const detailLines = [];
+    const processedTiles = new Set();
 
+    const formatTileLine = (name, position, rotationInt) =>
+    {
+        return `${name},` +
+            `${position.x.toFixed(3)},` +
+            `${position.y.toFixed(3)},` +
+            `${position.z.toFixed(3)},` +
+            `${rotationInt}`;
+    };
+
+    const formatDetailLine = (name, position, scale, quaternion) =>
+    {
+        return `${name},` +
+            `${position.x.toFixed(3)},` +
+            `${position.y.toFixed(3)},` +
+            `${position.z.toFixed(3)},` +
+            `${scale.x.toFixed(4)},` +
+            `${scale.y.toFixed(4)},` +
+            `${scale.z.toFixed(4)},` +
+            `${quaternion.x.toFixed(6)},` +
+            `${quaternion.y.toFixed(6)},` +
+            `${quaternion.z.toFixed(6)},` +
+            `${quaternion.w.toFixed(6)}`;
+    };
+
+    // Export grid tiles first in SL legacy format: name,x,y,z,rotation(0-3).
     placedTiles.forEach(mesh =>
     {
-        if (!mesh || processed.has(mesh.uuid)) return;
-        processed.add(mesh.uuid);
+        if (!mesh || !mesh.userData || mesh.userData.isDetail) return;
+        if (processedTiles.has(mesh.uuid)) return;
+        processedTiles.add(mesh.uuid);
 
         const tileData = mesh.userData.tileData;
         const pos = mesh.userData.position;
-        if (!tileData || !pos) return;
-        if (mesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(pos.layer || 1)) return;
+        if (!tileData || !pos || !visibleLayers.has(pos.layer || 1)) return;
 
         const rot = mesh.rotation.y || 0;
-
-        // --- effective footprint size (rotation aware)
         const [w, h] = getEffectiveDimensions(tileData, rot);
 
-        // --- footprint center in world space
         const wp = cellToWorld(
             pos.cellX + w / 2 - 0.5,
             pos.cellZ + h / 2 - 0.5
         );
 
-        let worldPos = new THREE.Vector3(wp.x, 0, wp.z);
+        const worldPos = new THREE.Vector3(wp.x, 0, wp.z);
 
-        // --- pivot offset (SL uses bounding box center)
         const pivot = tileData.pivotOffset || mesh.userData.pivotOffset;
-        let pivotVec = new THREE.Vector3(
+        const pivotVec = new THREE.Vector3(
             pivot?.x || 0,
             pivot?.y || 0,
-            (pivot?.z || 0) // ← NEGATE Z component to match coordinate flip!
+            pivot?.z || 0
         );
         pivotVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), rot);
 
-        // --- Apply visual offset if any
         const visualOffset = tileData.visualOffset || [0, 0, 0];
         worldPos.x += visualOffset[0];
         worldPos.z += visualOffset[2];
-
-        // --- final SL pivot position: footprint center + pivot offset
-        // For footprint_center pivot, we're already at the center
-        // For 1x1 tiles: w=1, h=1 → no additional offset needed
-        // For multi-cell tiles: The center is already correct
         worldPos.add(pivotVec);
 
-        // --- Y position (include visual offset in Y)
         const layerY = (pos.layer - 1) * LAYER_HEIGHT;
         const yOffset = tileData.yOffset || 0;
         const finalY = layerY + yOffset + (visualOffset[1] || 0);
 
-        // --- Convert to Second Life coordinates
-        const slX = (worldPos.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR;
-        const slY = (-worldPos.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR;
-        const slZ = finalY * SL_CONFIG.SCALE_FACTOR;
+        const slPosition = new THREE.Vector3(
+            (worldPos.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            (-worldPos.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            finalY * SL_CONFIG.SCALE_FACTOR
+        );
 
-        // --- rotation in degrees
-        let rotDeg = (rot * 180 / Math.PI) % 360;
-        if (rotDeg < 0) rotDeg += 360;
-        rotDeg = (rotDeg + SL_CONFIG.ROTATION_OFFSET) % 360;
+        let rotationInt = Math.round((rot % (Math.PI * 2)) / (Math.PI / 2));
+        rotationInt = ((rotationInt % 4) + 4) % 4;
 
         const name = String(
             tileData.originalId ||
             tileData.id ||
             tileData.name ||
-            "tile"
+            'tile'
         );
 
-        lines.push(
-            `${name},` +
-            `${slX.toFixed(3)},` +
-            `${slY.toFixed(3)},` +
-            `${slZ.toFixed(3)},` +
-            `${rotDeg.toFixed(1)}`
-        );
+        tileLines.push(formatTileLine(name, slPosition, rotationInt));
     });
 
-    // --- download
-    const blob = new Blob([lines.join("\n")],
+    // Export details last.
+    detailMeshes.forEach(mesh =>
     {
-        type: "text/plain"
+        if (!mesh || !mesh.userData || !mesh.userData.isDetail) return;
+
+        const detailData = mesh.userData.tileData;
+        const pos = mesh.userData.position;
+        if (!detailData || !pos) return;
+        if (!detailLayerVisible || !visibleLayers.has(pos.layer || 1)) return;
+
+        const slPosition = new THREE.Vector3(
+            (mesh.position.x + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            (-mesh.position.z + GRID_SIZE / 2) * SL_CONFIG.SCALE_FACTOR,
+            mesh.position.y * SL_CONFIG.SCALE_FACTOR
+        );
+
+        const detailScale = mesh.userData.scale ? mesh.userData.scale.clone() : new THREE.Vector3(1, 1, 1);
+        const rotQuat = mesh.quaternion.clone();
+
+        const name = String(
+            detailData.originalId ||
+            detailData.id ||
+            detailData.name ||
+            'detail'
+        );
+
+        detailLines.push(formatDetailLine(name, slPosition, detailScale, rotQuat));
+    });
+
+    const lines = [
+        '# --- Tiles ---',
+        tileHeader,
+        ...tileLines,
+        '',
+        '# ------------------------------',
+        '# --- Details (after tiles) ---',
+        detailHeader,
+        ...detailLines
+    ];
+
+    const blob = new Blob([lines.join('\n')],
+    {
+        type: 'text/plain'
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = "secondlife_export.txt";
+    a.download = 'secondlife_export.txt';
     a.click();
     URL.revokeObjectURL(url);
 
-    showNotification(`Exported ${lines.length} tiles`);
+    showNotification(`Exported ${tileLines.length} tiles and ${detailLines.length} details`);
 }
 
 // Loads persisted editor settings from local storage.
