@@ -3847,7 +3847,8 @@ function updateTileGrid()
                 grid.querySelectorAll('.tile-item').forEach(el => el.classList.remove('active'));
                 div.classList.add('active');
 
-                // Set interaction mode to place tiles
+                // Switch to tile mode and place tiles
+                switchEditorMode('tiles');
                 setInteractionMode('place');
             };
 
@@ -3942,7 +3943,8 @@ function updateTileGrid()
                 grid.querySelectorAll('.tile-item').forEach(el => el.classList.remove('active'));
                 div.classList.add('active');
 
-                // Set interaction mode to place details
+                // Switch to detail mode and place details
+                switchEditorMode('details');
                 setInteractionMode('place');
             };
 
@@ -5804,6 +5806,16 @@ function switchPackType(type)
         activeDetailPackId = Array.from(detailPacks.keys())[0];
     }
 
+    // Keep editor mode in sync with selected asset browser type.
+    if (type === 'details')
+    {
+        switchEditorMode('details');
+    }
+    else
+    {
+        switchEditorMode('tiles');
+    }
+
     // Update pack list
     updatePackList();
 
@@ -5992,7 +6004,8 @@ function updateDetailGrid()
             grid.querySelectorAll('.tile-item').forEach(el => el.classList.remove('active'));
             div.classList.add('active');
 
-            // Set interaction mode to detail placement
+            // Switch to detail mode and place details
+            switchEditorMode('details');
             setInteractionMode('place');
         };
 
