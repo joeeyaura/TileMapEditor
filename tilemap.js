@@ -4776,7 +4776,7 @@ async function exportAsMesh()
             const tileObjectName = rootMesh.userData.tileData?.id
                 ? `${rootMesh.userData.tileData.id}_${cellKey}`
                 : `tile_${cellKey}`;
-            objFaces.push(`o ${tileObjectName.replace(/\s+/g, '_')}`);
+            objFaces.push(`g ${tileObjectName.replace(/\s+/g, '_')}`);
 
             const meshes = [];
             rootMesh.traverse((child) =>
@@ -4793,7 +4793,7 @@ async function exportAsMesh()
                 continue;
             }
 
-            meshes.forEach((mesh, meshIndex) =>
+            meshes.forEach((mesh) =>
             {
                 const geometry = mesh.geometry;
                 const positions = geometry.attributes.position.array;
@@ -4847,8 +4847,6 @@ async function exportAsMesh()
                         objUVs.push('vt 0.000000 0.000000');
                     }
                 }
-
-                objFaces.push(`g ${tileObjectName.replace(/\s+/g, '_')}_part_${meshIndex + 1}`);
 
                 const meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                 const groups = geometry.groups && geometry.groups.length > 0
