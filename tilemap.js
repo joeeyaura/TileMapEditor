@@ -4205,11 +4205,26 @@ function clearGrid()
     detailMeshes.clear();
     selectedPlacedTile = null;
 
+    // Soft reset layer state: keep only Layer 1 plus the dedicated details layer.
+    layerMap.clear();
+    layerMap.set(1,
+    {
+        name: 'Layer 1',
+        locked: false,
+        visible: true
+    });
+    currentLayer = 1;
+    maxLayer = 1;
+
     if (transformControls)
     {
         transformControls.detach();
         transformControls.visible = false;
     }
+
+    updateLayerPanel();
+    updateModeIndicator();
+    updateGridPosition();
 
     showNotification('Grid cleared');
 }
