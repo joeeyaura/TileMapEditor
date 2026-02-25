@@ -4205,11 +4205,26 @@ function clearGrid()
     detailMeshes.clear();
     selectedPlacedTile = null;
 
+    // Soft reset layer state: keep only Layer 1 plus the dedicated details layer.
+    layerMap.clear();
+    layerMap.set(1,
+    {
+        name: 'Layer 1',
+        locked: false,
+        visible: true
+    });
+    currentLayer = 1;
+    maxLayer = 1;
+
     if (transformControls)
     {
         transformControls.detach();
         transformControls.visible = false;
     }
+
+    updateLayerPanel();
+    updateModeIndicator();
+    updateGridPosition();
 
     showNotification('Grid cleared');
 }
@@ -4713,27 +4728,71 @@ async function exportAsMesh()
         );
 
         const processedMeshes = new Set();
-        let objVertices = [];
-        let objNormals = [];
-        let objUVs = [];
-        let objFaces = [];
+        const objVertices = [];
+        const objNormals = [];
+        const objUVs = [];
+        const objFaces = [];
+
         let currentVertexIndex = 1;
         let currentNormalIndex = 1;
         let currentUVIndex = 1;
 
-        // Material library
         const materials = new Map();
         let materialIndex = 0;
 
+        const registerMaterial = (sourceMaterial, fallbackColor = '#888888') =>
+        {
+            const colorHex = sourceMaterial?.color ? sourceMaterial.color.getHexString() : new THREE.Color(fallbackColor).getHexString();
+            const opacity = sourceMaterial && sourceMaterial.opacity !== undefined ? sourceMaterial.opacity : 1;
+            const transparent = sourceMaterial?.transparent ? 1 : 0;
+            const side = sourceMaterial?.side ?? 0;
+            const mapSrc = sourceMaterial?.map?.image?.currentSrc || sourceMaterial?.map?.image?.src || '';
 
-        for (const [key, rootMesh] of placedTiles)
+            const materialKey = JSON.stringify({
+                name: sourceMaterial?.name || '',
+                colorHex,
+                opacity,
+                transparent,
+                side,
+                mapSrc
+            });
+
+            if (!materials.has(materialKey))
+            {
+                materialIndex++;
+                materials.set(materialKey,
+                {
+                    name: sourceMaterial?.name || `material_${materialIndex}`,
+                    color: `#${colorHex}`,
+                    opacity,
+                    transparent: Boolean(transparent),
+                    mapSrc
+                });
+            }
+
+            return materials.get(materialKey).name;
+        };
+
+        const formatFaceVertex = (vIndex, vtIndex, vnIndex) =>
+        {
+            if (vtIndex && vnIndex) return `${vIndex}/${vtIndex}/${vnIndex}`;
+            if (vtIndex) return `${vIndex}/${vtIndex}`;
+            if (vnIndex) return `${vIndex}//${vnIndex}`;
+            return `${vIndex}`;
+        };
+
+        for (const [cellKey, rootMesh] of placedTiles)
         {
             if (processedMeshes.has(rootMesh.uuid)) continue;
             if (rootMesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(rootMesh.userData.position.layer)) continue;
 
             processedMeshes.add(rootMesh.uuid);
 
-            // Traverse children to find meshes with geometry
+            const tileObjectName = rootMesh.userData.tileData?.id
+                ? `${rootMesh.userData.tileData.id}_${cellKey}`
+                : `tile_${cellKey}`;
+            objFaces.push(`g ${tileObjectName.replace(/\s+/g, '_')}`);
+
             const meshes = [];
             rootMesh.traverse((child) =>
             {
@@ -4745,48 +4804,33 @@ async function exportAsMesh()
 
             if (meshes.length === 0)
             {
-                console.warn(`No geometry found for tile: ${key}`);
+                console.warn(`No geometry found for tile: ${cellKey}`);
                 continue;
             }
 
-            // Create material
-            const tileId = rootMesh.userData.tileData.id;
-            if (!materials.has(tileId))
-            {
-                materialIndex++;
-                const color = rootMesh.userData.tileData.color || '#888888';
-                materials.set(tileId,
-                {
-                    name: `material_${materialIndex}`,
-                    color: color
-                });
-            }
-            const matName = materials.get(tileId).name;
-
-            // Process each mesh part
-            meshes.forEach(mesh =>
+            meshes.forEach((mesh) =>
             {
                 const geometry = mesh.geometry;
                 const positions = geometry.attributes.position.array;
                 const normals = geometry.attributes.normal?.array;
                 const uvs = geometry.attributes.uv?.array;
                 const index = geometry.index?.array;
+                const vertexCount = positions.length / 3;
 
-                // Apply world transform
+                if (vertexCount === 0) return;
+
                 mesh.updateMatrixWorld();
                 const matrixWorld = mesh.matrixWorld;
                 const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
 
-                // Transform vertices
                 for (let i = 0; i < positions.length; i += 3)
                 {
                     const vertex = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
                     vertex.applyMatrix4(matrixWorld);
-                    vertex.multiplyScalar(MODEL_SCALE_INVERSE); // Scale back up for export
+                    vertex.multiplyScalar(MODEL_SCALE_INVERSE);
                     objVertices.push(`v ${vertex.x.toFixed(6)} ${vertex.y.toFixed(6)} ${vertex.z.toFixed(6)}`);
                 }
 
-                // Transform normals
                 if (normals)
                 {
                     for (let i = 0; i < normals.length; i += 3)
@@ -4798,116 +4842,89 @@ async function exportAsMesh()
                 }
                 else
                 {
-                    // Generate flat normals for missing data
-                    for (let i = 0; i < positions.length; i += 9)
+                    for (let i = 0; i < vertexCount; i++)
                     {
-                        const v1 = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]).applyMatrix4(matrixWorld);
-                        const v2 = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]).applyMatrix4(matrixWorld);
-                        const v3 = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]).applyMatrix4(matrixWorld);
-
-                        const normal = new THREE.Vector3().crossVectors(
-                            new THREE.Vector3().subVectors(v2, v1),
-                            new THREE.Vector3().subVectors(v3, v1)
-                        ).normalize();
-
-                        // Add same normal for all 3 vertices of this triangle
-                        for (let j = 0; j < 3; j++)
-                        {
-                            objNormals.push(`vn ${normal.x.toFixed(6)} ${normal.y.toFixed(6)} ${normal.z.toFixed(6)}`);
-                        }
+                        objNormals.push('vn 0.000000 1.000000 0.000000');
                     }
                 }
 
-                // Copy UVs
                 if (uvs)
                 {
                     for (let i = 0; i < uvs.length; i += 2)
                     {
-                        objUVs.push(`vt ${uvs[i].toFixed(6)} ${uvs[i+1].toFixed(6)}`);
+                        objUVs.push(`vt ${uvs[i].toFixed(6)} ${uvs[i + 1].toFixed(6)}`);
                     }
                 }
                 else
                 {
-                    // Add dummy UVs if missing
-                    const vertexCount = positions.length / 3;
                     for (let i = 0; i < vertexCount; i++)
                     {
-                        objUVs.push(`vt 0.000000 0.000000`);
+                        objUVs.push('vt 0.000000 0.000000');
                     }
                 }
 
-                // Generate faces
-                objFaces.push(`g ${mesh.uuid}`);
-                objFaces.push(`usemtl ${matName}`);
+                const meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                const groups = geometry.groups && geometry.groups.length > 0
+                    ? geometry.groups
+                    : [{ start: 0, count: index ? index.length : vertexCount, materialIndex: 0 }];
 
-                const vertexCount = positions.length / 3;
-                if (index)
+                groups.forEach((group) =>
                 {
-                    // Indexed geometry - ensures we don't exceed vertex count
-                    for (let i = 0; i < index.length; i += 3)
-                    {
-                        const idx0 = index[i];
-                        const idx1 = index[i + 1];
-                        const idx2 = index[i + 2];
+                    const sourceMaterial = meshMaterials[group.materialIndex] || meshMaterials[0] || null;
+                    const fallbackColor = rootMesh.userData.tileData?.color || '#888888';
+                    const materialName = registerMaterial(sourceMaterial, fallbackColor);
+                    objFaces.push(`usemtl ${materialName}`);
 
-                        // Safety check
-                        if (idx0 >= vertexCount || idx1 >= vertexCount || idx2 >= vertexCount)
+                    if (index)
+                    {
+                        const groupEnd = Math.min(group.start + group.count, index.length);
+                        for (let i = group.start; i + 2 < groupEnd; i += 3)
                         {
-                            console.warn('Invalid index found, skipping face');
-                            continue;
+                            const idx0 = index[i];
+                            const idx1 = index[i + 1];
+                            const idx2 = index[i + 2];
+
+                            if (idx0 >= vertexCount || idx1 >= vertexCount || idx2 >= vertexCount) continue;
+
+                            const v1 = currentVertexIndex + idx0;
+                            const v2 = currentVertexIndex + idx1;
+                            const v3 = currentVertexIndex + idx2;
+                            const vt1 = currentUVIndex + idx0;
+                            const vt2 = currentUVIndex + idx1;
+                            const vt3 = currentUVIndex + idx2;
+                            const vn1 = currentNormalIndex + idx0;
+                            const vn2 = currentNormalIndex + idx1;
+                            const vn3 = currentNormalIndex + idx2;
+
+                            objFaces.push(`f ${formatFaceVertex(v1, vt1, vn1)} ${formatFaceVertex(v2, vt2, vn2)} ${formatFaceVertex(v3, vt3, vn3)}`);
                         }
-
-                        const v1 = currentVertexIndex + idx0;
-                        const v2 = currentVertexIndex + idx1;
-                        const v3 = currentVertexIndex + idx2;
-
-                        let face = `f ${v1}`;
-                        if (uvs) face += `/${currentUVIndex + idx0}`;
-                        if (normals) face += `/${currentNormalIndex + idx0}`;
-                        face += ` ${v2}`;
-                        if (uvs) face += `/${currentUVIndex + idx1}`;
-                        if (normals) face += `/${currentNormalIndex + idx1}`;
-                        face += ` ${v3}`;
-                        if (uvs) face += `/${currentUVIndex + idx2}`;
-                        if (normals) face += `/${currentNormalIndex + idx2}`;
-
-                        objFaces.push(face);
                     }
-                }
-                else
-                {
-                    // Non-indexed geometry
-                    for (let i = 0; i < vertexCount; i += 3)
+                    else
                     {
-                        const v1 = currentVertexIndex + i;
-                        const v2 = currentVertexIndex + i + 1;
-                        const v3 = currentVertexIndex + i + 2;
+                        const groupEnd = Math.min(group.start + group.count, vertexCount);
+                        for (let i = group.start; i + 2 < groupEnd; i += 3)
+                        {
+                            const v1 = currentVertexIndex + i;
+                            const v2 = currentVertexIndex + i + 1;
+                            const v3 = currentVertexIndex + i + 2;
+                            const vt1 = currentUVIndex + i;
+                            const vt2 = currentUVIndex + i + 1;
+                            const vt3 = currentUVIndex + i + 2;
+                            const vn1 = currentNormalIndex + i;
+                            const vn2 = currentNormalIndex + i + 1;
+                            const vn3 = currentNormalIndex + i + 2;
 
-                        // Safety check
-                        if (v2 >= (currentVertexIndex + vertexCount) || v3 >= (currentVertexIndex + vertexCount)) break;
-
-                        let face = `f ${v1}`;
-                        if (uvs) face += `/${currentUVIndex + i}`;
-                        if (normals) face += `/${currentNormalIndex + i}`;
-                        face += ` ${v2}`;
-                        if (uvs) face += `/${currentUVIndex + i + 1}`;
-                        if (normals) face += `/${currentNormalIndex + i + 1}`;
-                        face += ` ${v3}`;
-                        if (uvs) face += `/${currentUVIndex + i + 2}`;
-                        if (normals) face += `/${currentNormalIndex + i + 2}`;
-
-                        objFaces.push(face);
+                            objFaces.push(`f ${formatFaceVertex(v1, vt1, vn1)} ${formatFaceVertex(v2, vt2, vn2)} ${formatFaceVertex(v3, vt3, vn3)}`);
+                        }
                     }
-                }
+                });
 
-                // Update indices for next mesh
                 currentVertexIndex += vertexCount;
-                if (normals) currentNormalIndex += vertexCount;
-                if (uvs) currentUVIndex += vertexCount;
+                currentNormalIndex += vertexCount;
+                currentUVIndex += vertexCount;
             });
         }
 
-        // Build OBJ content (same as before)
         let objContent = `# Tile Map Export\n`;
         objContent += `# ${processedMeshes.size} tiles\n\n`;
         objContent += `mtllib tilemap.mtl\n\n`;
@@ -4925,19 +4942,27 @@ async function exportAsMesh()
 
         objContent += objFaces.join('\n');
 
-        // Build MTL content
         let mtlContent = `# Tile Map Materials\n\n`;
-        for (const [tileId, mat] of materials)
+        for (const [, mat] of materials)
         {
             const color = new THREE.Color(mat.color);
             mtlContent += `newmtl ${mat.name}\n`;
             mtlContent += `Kd ${color.r.toFixed(3)} ${color.g.toFixed(3)} ${color.b.toFixed(3)}\n`;
             mtlContent += `Ka ${(color.r * 0.2).toFixed(3)} ${(color.g * 0.2).toFixed(3)} ${(color.b * 0.2).toFixed(3)}\n`;
             mtlContent += `Ks 0.000 0.000 0.000\n`;
-            mtlContent += `Ns 10.0\n\n`;
+            mtlContent += `Ns 10.0\n`;
+            if (mat.transparent)
+            {
+                mtlContent += `d ${mat.opacity.toFixed(3)}\n`;
+            }
+            if (mat.mapSrc)
+            {
+                const textureName = mat.mapSrc.split('/').pop();
+                mtlContent += `map_Kd ${textureName}\n`;
+            }
+            mtlContent += `\n`;
         }
 
-        // Download files
         downloadFile(objContent, `tilemap_${Date.now()}.obj`, 'text/plain');
         downloadFile(mtlContent, `tilemap_${Date.now()}.mtl`, 'text/plain');
 
