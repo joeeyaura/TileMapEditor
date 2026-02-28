@@ -5,7 +5,7 @@ let isGridVisible = true; // NEW: State for grid visibility
 let walkCamera = null;
 let yaw = 0; // Horizontal rotation
 let pitch = 0; // Vertical rotation
-let scene, camera, renderer, gridHelper;
+let scene, camera, perspectiveCamera, orthographicCamera, renderer, gridHelper;
 let tiles = new Map(); // All available tiles
 let tilePacks = new Map(); // Pack organization
 let activePackId = null;
@@ -36,6 +36,7 @@ let draggedTile = null;
 let previewGhost = null;
 let cameraTarget = new THREE.Vector3(0, 0, 0);
 let cameraDistance = 40;
+let cameraMode = 'perspective'; // 'perspective' or 'topdown'
 let meshCache = new Map();
 
 let walkMode = false;
@@ -117,6 +118,7 @@ const AUTOSAVE_INTERVAL = 30000; // 30 seconds
 const MODEL_SCALE = 0.25; // Scale factor for all imported models
 const MODEL_SCALE_INVERSE = 1 / MODEL_SCALE; // = 4, for exporting
 const EXPORT_SCALE = 4.0; // Your game engine uses 4x4x4 units per cell
+const ORTHO_ZOOM_SCALE = 0.5;
 // --- Command Pattern Classes ---
 
 class Command
@@ -558,8 +560,12 @@ function init()
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0e27);
 
-    const aspect = (window.innerWidth - 300) / window.innerHeight;
-    camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    const { width, height } = getViewportDimensions();
+    const aspect = width / height;
+
+    perspectiveCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    orthographicCamera = new THREE.OrthographicCamera(-20 * aspect, 20 * aspect, 20, -20, 0.1, 1000);
+    camera = perspectiveCamera;
     updateCameraPosition();
 
     walkCamera = new THREE.Object3D();
@@ -580,7 +586,6 @@ function init()
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.AgXToneMapping;
     renderer.toneMappingExposure = 1;
-    const { width, height } = getViewportDimensions();
     renderer.setSize(width, height);
     document.getElementById('viewport').appendChild(renderer.domElement);
 
@@ -956,13 +961,14 @@ function setupEventListeners()
         cameraDistance = 40;
         cameraControls.theta = Math.PI / 4;
         cameraControls.phi = Math.PI / 4;
+        setCameraMode('perspective');
         updateCameraPosition();
     });
     document.getElementById('walkMode').addEventListener('click', toggleWalk);
 
     // View Presets
-    document.getElementById('topView').addEventListener('click', () => setPresetView(0, Math.PI / 2));
-    document.getElementById('isoView').addEventListener('click', () => setPresetView(Math.PI / 4, Math.PI / 4));
+    document.getElementById('topView').addEventListener('click', () => setPresetView(0, Math.PI / 2, true));
+    document.getElementById('isoView').addEventListener('click', () => setPresetView(Math.PI / 4, Math.PI / 4, false));
 
     document.addEventListener('keydown', (e) =>
     {
@@ -1234,7 +1240,7 @@ function setupEventListeners()
 
             // For top-down view (phi close to 90°), use absolute directions
             // For perspective view, use camera-relative
-            const isTopDown = Math.abs(cameraControls.phi - Math.PI / 2) < 0.1;
+            const isTopDown = cameraMode === 'topdown';
 
             let moveX = 0;
             let moveZ = 0;
@@ -1569,11 +1575,12 @@ function updateModeIndicator()
 
 
 // Sets preset view.
-function setPresetView(theta, phi)
+function setPresetView(theta, phi, topDown = false)
 {
     cameraDistance = 60;
     cameraControls.theta = theta;
     cameraControls.phi = phi;
+    setCameraMode(topDown ? 'topdown' : 'perspective');
     updateCameraPosition();
 }
 
@@ -2366,7 +2373,7 @@ function onMouseDown(event)
     }
 
 
-    if (event.button === 2)
+    if (event.button === 2 && cameraMode !== 'topdown')
     {
         cameraControls.isRotating = true;
         cameraControls.rotateStart.set(event.clientX, event.clientY);
@@ -3226,24 +3233,64 @@ function createGrid(layerY = 0)
     gridHelper.visible = isGridVisible;
 }
 
+// Switches active camera type between perspective and top-down orthographic.
+function setCameraMode(mode)
+{
+    cameraMode = mode;
+    camera = mode === 'topdown' ? orthographicCamera : perspectiveCamera;
+
+    if (mode !== 'topdown')
+    {
+        camera.up.set(0, 1, 0);
+    }
+
+    if (renderPass) renderPass.camera = camera;
+    if (ssaoPass) ssaoPass.camera = camera;
+    if (transformControls) transformControls.camera = camera;
+}
+
 // Updates the orbital editor camera position from camera control values.
 function updateCameraPosition()
 {
-    camera.position.set(
+    if (cameraMode === 'topdown')
+    {
+        const aspect = orthographicCamera.aspect || 1;
+        const orthoSize = Math.max(2, cameraDistance * ORTHO_ZOOM_SCALE);
+
+        orthographicCamera.left = -orthoSize * aspect;
+        orthographicCamera.right = orthoSize * aspect;
+        orthographicCamera.top = orthoSize;
+        orthographicCamera.bottom = -orthoSize;
+        orthographicCamera.position.set(cameraTarget.x, cameraTarget.y + cameraDistance, cameraTarget.z);
+        orthographicCamera.up.set(0, 0, -1);
+        orthographicCamera.lookAt(cameraTarget);
+        orthographicCamera.updateProjectionMatrix();
+        return;
+    }
+
+    perspectiveCamera.position.set(
         cameraTarget.x + cameraDistance * Math.sin(cameraControls.theta) * Math.cos(cameraControls.phi),
         cameraTarget.y + cameraDistance * Math.sin(cameraControls.phi),
         cameraTarget.z + cameraDistance * Math.cos(cameraControls.theta) * Math.cos(cameraControls.phi)
     );
-    camera.lookAt(cameraTarget);
+    perspectiveCamera.lookAt(cameraTarget);
 }
 
 // Handles viewport resize updates for camera and renderer.
 function onWindowResize()
 {
     const { width, height } = getViewportDimensions();
+    const aspect = width / height;
 
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
+    perspectiveCamera.aspect = aspect;
+    perspectiveCamera.updateProjectionMatrix();
+
+    orthographicCamera.aspect = aspect;
+    if (cameraMode === 'topdown')
+    {
+        updateCameraPosition();
+    }
+
     renderer.setSize(width, height);
 
     if (composer) composer.setSize(width, height);
@@ -5079,8 +5126,11 @@ function applySettings()
     }
 
     scene.background.setHex(settings.backgroundColor);
-    camera.fov = settings.fov;
-    camera.updateProjectionMatrix();
+    if (perspectiveCamera)
+    {
+        perspectiveCamera.fov = settings.fov;
+        perspectiveCamera.updateProjectionMatrix();
+    }
 
     if (previewGhost)
     {
