@@ -4382,11 +4382,12 @@ async function loadLayout(layoutData, skipConfirm = false)
                         scene.add(mesh);
                         detailMeshes.add(mesh);
 
-                        // Register in placedTiles for selection support
-                        const cell = worldToCell(position.x, position.z);
-                        const key = `${cell.x},${cell.z},${savedDetail.layer || currentLayer}`;
-                        placedTiles.set(key, mesh);
-                        mesh.userData.occupiedCells = [key];
+                        // Details are tracked in detailMeshes and selected via dedicated
+                        // detail raycasts. Do not register them in placedTiles because
+                        // that map is the collision/occupancy source for grid tiles.
+                        // If we add details here, a detail on the same cell can override
+                        // a tile entry and make the tile appear missing when reloading.
+                        mesh.userData.occupiedCells = [];
 
                         loadedDetailCount++;
                     }
