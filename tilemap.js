@@ -1469,29 +1469,7 @@ function setTransformMode(mode)
     if (transformControls)
     {
         transformControls.setMode(mode);
-
-        // Update snap settings
-        if (snapEnabled)
-        {
-            if (mode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (mode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (mode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
+        applyTransformSnapSettings();
     }
 
     // Update interaction mode
@@ -1508,27 +1486,7 @@ function toggleSnap()
 
     if (transformControls)
     {
-        if (snapEnabled)
-        {
-            if (transformMode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (transformMode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (transformMode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
+        applyTransformSnapSettings();
     }
 
     // Update button
@@ -2024,6 +1982,90 @@ function getSnappedTileRotationRadians(rotationValue)
     return normalizeTileQuarterTurns(rotationValue) * (Math.PI / 2);
 }
 
+// Normalizes serialized detail rotation values into an XYZ Euler.
+function normalizeDetailRotationEuler(rotationValue, fallbackY = 0)
+{
+    if (Array.isArray(rotationValue) && rotationValue.length >= 3)
+    {
+        return new THREE.Euler(
+            Number.isFinite(rotationValue[0]) ? rotationValue[0] : 0,
+            Number.isFinite(rotationValue[1]) ? rotationValue[1] : fallbackY,
+            Number.isFinite(rotationValue[2]) ? rotationValue[2] : 0
+        );
+    }
+
+    if (rotationValue && typeof rotationValue === 'object')
+    {
+        return new THREE.Euler(
+            Number.isFinite(rotationValue.x) ? rotationValue.x : 0,
+            Number.isFinite(rotationValue.y) ? rotationValue.y : fallbackY,
+            Number.isFinite(rotationValue.z) ? rotationValue.z : 0
+        );
+    }
+
+    const y = Number.isFinite(rotationValue) ? rotationValue : fallbackY;
+    return new THREE.Euler(0, y, 0);
+}
+
+// Resolves per-detail angle snap (degrees in JSON) into radians.
+function getDetailRotationSnapRadians(detailData)
+{
+    if (!detailData) return transformSnapValues.rotate;
+
+    const snapping = detailData.snapping;
+    if (snapping === 'none' || snapping === false)
+    {
+        return null;
+    }
+
+    const candidateDegrees = [
+        detailData.angleSnap,
+        detailData.angleSnaps,
+        detailData.rotationSnap,
+        detailData.rotationSnapDegrees,
+        detailData.snapAngle,
+        typeof snapping === 'number' ? snapping : null,
+        typeof snapping === 'string' ? parseFloat(snapping) : null,
+        (snapping && typeof snapping === 'object') ? (snapping.angle ?? snapping.rotation ?? snapping.degrees) : null
+    ];
+
+    const angleDegrees = candidateDegrees.find(v => Number.isFinite(v) && v > 0);
+    if (!Number.isFinite(angleDegrees))
+    {
+        return transformSnapValues.rotate;
+    }
+
+    return THREE.MathUtils.degToRad(angleDegrees);
+}
+
+// Applies active transform snap values, including per-detail rotation snapping.
+function applyTransformSnapSettings()
+{
+    if (!transformControls) return;
+
+    if (!snapEnabled)
+    {
+        transformControls.setTranslationSnap(null);
+        transformControls.setRotationSnap(null);
+        transformControls.setScaleSnap(null);
+        return;
+    }
+
+    if (transformMode === 'translate')
+    {
+        transformControls.setTranslationSnap(transformSnapValues.translate);
+    }
+    else if (transformMode === 'rotate')
+    {
+        const detailData = transformControls.object?.userData?.isDetail ? transformControls.object.userData.tileData : null;
+        transformControls.setRotationSnap(getDetailRotationSnapRadians(detailData));
+    }
+    else if (transformMode === 'scale')
+    {
+        transformControls.setScaleSnap(transformSnapValues.scale);
+    }
+}
+
 // Builds a complete layout payload for autosave and manual save.
 function buildLayoutData()
 {
@@ -2082,7 +2124,12 @@ function buildLayoutData()
                 y: mesh.position.y,
                 z: mesh.position.z
             },
-            rotation: mesh.rotation.y,
+            rotation:
+            {
+                x: mesh.rotation.x,
+                y: mesh.rotation.y,
+                z: mesh.rotation.z
+            },
             scale: [scale.x, scale.y, scale.z],
             layer: mesh.userData.position.layer
         });
@@ -3068,6 +3115,7 @@ function selectTile(tileMesh)
     {
         transformControls.attach(tileMesh);
         transformControls.visible = true;
+        applyTransformSnapSettings();
         setTransformMode('translate');
     }
 
@@ -4357,13 +4405,15 @@ async function loadLayout(layoutData, skipConfirm = false)
                         savedDetail.position.z
                     );
 
+                    const detailRotation = normalizeDetailRotationEuler(savedDetail.rotation, savedDetail.rotationY || 0);
+
                     // Create detail mesh with the scale multiplier
                     const mesh = await prepareDetailMesh(
                         position.x,
                         position.z,
                         savedDetail.layer || currentLayer,
                         detailDef,
-                        savedDetail.rotation || 0,
+                        detailRotation.y,
                         scaleMultiplier // Pass the multiplier, not the actual scale
                     );
 
@@ -4371,6 +4421,8 @@ async function loadLayout(layoutData, skipConfirm = false)
                     {
                         // Set exact Y position from saved data
                         mesh.position.y = savedDetail.position.y;
+                        mesh.rotation.copy(detailRotation);
+                        mesh.userData.rotation = detailRotation.clone();
 
                         // CRITICAL FIX: Ensure scale multiplier is stored correctly
                         mesh.userData.scale = new THREE.Vector3(
