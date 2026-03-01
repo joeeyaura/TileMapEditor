@@ -78,6 +78,119 @@ let ssaoPass = null;
 let placementRotation = 0;
 let isTransforming = false;
 
+function getDetailPositionSnap(detailData)
+{
+    const snap = detailData?.positionSnapping;
+
+    if (Array.isArray(snap) && snap.length >= 2)
+    {
+        return {
+            x: Math.max(0, Number(snap[0]) || 0),
+            z: Math.max(0, Number(snap[1]) || 0)
+        };
+    }
+
+    const uniformSnap = Number(snap);
+    if (Number.isFinite(uniformSnap))
+    {
+        const grid = Math.max(0, uniformSnap);
+        return {
+            x: grid,
+            z: grid
+        };
+    }
+
+    return {
+        x: 0,
+        z: 0
+    };
+}
+
+function getDetailAngleSnapRadians(detailData)
+{
+    const angleSnapDegrees = Number(detailData?.angleSnapping || 0);
+    if (!Number.isFinite(angleSnapDegrees) || angleSnapDegrees <= 0) return 0;
+    return THREE.MathUtils.degToRad(angleSnapDegrees);
+}
+
+function snapDetailPosition(point, detailData, forceCellSnap = false)
+{
+    if (forceCellSnap)
+    {
+        const cell = worldToCell(point.x, point.z);
+        const snapped = cellToWorld(cell.x + 0.5, cell.z + 0.5);
+        return new THREE.Vector3(snapped.x, point.y, snapped.z);
+    }
+
+    const step = getDetailPositionSnap(detailData);
+    const snapped = point.clone();
+
+    if (step.x > 0)
+    {
+        snapped.x = Math.round(snapped.x / step.x) * step.x;
+    }
+
+    if (step.z > 0)
+    {
+        snapped.z = Math.round(snapped.z / step.z) * step.z;
+    }
+
+    return snapped;
+}
+
+function snapDetailRotation(rotation, detailData)
+{
+    const angleStep = getDetailAngleSnapRadians(detailData);
+    if (angleStep <= 0) return rotation;
+    return Math.round(rotation / angleStep) * angleStep;
+}
+
+function getDetailPlacementRotationStep(detailData)
+{
+    const angleStep = getDetailAngleSnapRadians(detailData);
+    return angleStep > 0 ? angleStep : Math.PI / 2;
+}
+
+
+function applyDetailTransformSnap()
+{
+    if (!transformControls) return;
+
+    if (!snapEnabled)
+    {
+        transformControls.setTranslationSnap(null);
+        transformControls.setRotationSnap(null);
+        transformControls.setScaleSnap(null);
+        return;
+    }
+
+    const activeDetail = selectedPlacedTile?.userData?.isDetail ? selectedPlacedTile.userData.tileData : null;
+    const posSnap = getDetailPositionSnap(activeDetail);
+    const rotSnap = getDetailAngleSnapRadians(activeDetail);
+
+    if (transformMode === 'translate')
+    {
+        // Prefer per-detail snapping; fallback to global editor snap.
+        const step = posSnap.x > 0 ? posSnap.x : (posSnap.z > 0 ? posSnap.z : transformSnapValues.translate);
+        transformControls.setTranslationSnap(step);
+        transformControls.setRotationSnap(null);
+        transformControls.setScaleSnap(null);
+    }
+    else if (transformMode === 'rotate')
+    {
+        const step = rotSnap > 0 ? rotSnap : transformSnapValues.rotate;
+        transformControls.setRotationSnap(step);
+        transformControls.setTranslationSnap(null);
+        transformControls.setScaleSnap(null);
+    }
+    else if (transformMode === 'scale')
+    {
+        transformControls.setScaleSnap(transformSnapValues.scale);
+        transformControls.setTranslationSnap(null);
+        transformControls.setRotationSnap(null);
+    }
+}
+
 // Dual Mode System Variables
 let editorMode = 'tiles'; // 'tiles' or 'details'
 let previousTileMode = 'place'; // Store last tile mode when switching
@@ -1206,8 +1319,17 @@ function setupEventListeners()
         {
             if (interactionMode === 'place')
             {
-                // Rotate the "Brush"
-                placementRotation += Math.PI / 2;
+                // Rotate the brush.
+                const rotationStep = editorMode === 'details' ?
+                    getDetailPlacementRotationStep(selectedDetail) :
+                    Math.PI / 2;
+                placementRotation += rotationStep;
+
+                if (editorMode === 'details')
+                {
+                    placementRotation = snapDetailRotation(placementRotation, selectedDetail);
+                }
+
                 // Update the ghost immediately
                 if (previewGhost) previewGhost.rotation.y = placementRotation;
             }
@@ -1470,28 +1592,7 @@ function setTransformMode(mode)
     {
         transformControls.setMode(mode);
 
-        // Update snap settings
-        if (snapEnabled)
-        {
-            if (mode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (mode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (mode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
+        applyDetailTransformSnap();
     }
 
     // Update interaction mode
@@ -1506,30 +1607,7 @@ function toggleSnap()
 {
     snapEnabled = !snapEnabled;
 
-    if (transformControls)
-    {
-        if (snapEnabled)
-        {
-            if (transformMode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (transformMode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (transformMode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
-    }
+    applyDetailTransformSnap();
 
     // Update button
     const btn = document.getElementById('toggleSnap');
@@ -2462,7 +2540,7 @@ function onMouseMove(event)
                 // Detail mode preview
                 if (interactionMode === 'place' && selectedDetail)
                 {
-                    updateDetailPreview(selectedDetail, target);
+                    updateDetailPreview(selectedDetail, target, event.altKey, placementRotation);
                 }
                 else
                 {
@@ -2537,11 +2615,11 @@ function updateTilePreview(hitPoint, tileData = null, excludeMesh = null)
 }
 
 // Updates detail preview.
-function updateDetailPreview(detailData, hitPoint)
+function updateDetailPreview(detailData, hitPoint, forceCellSnap = false, rotation = 0)
 {
     removeDetailPreview();
 
-    // Create a preview sphere at the ACTUAL hit point (on the ground)
+    // Create a preview sphere at the snapped hit point (on the ground)
     const previewGeometry = new THREE.SphereGeometry(0.3, 8, 8);
     const previewMaterial = new THREE.MeshLambertMaterial(
     {
@@ -2553,8 +2631,10 @@ function updateDetailPreview(detailData, hitPoint)
 
     detailPreview = new THREE.Mesh(previewGeometry, previewMaterial);
 
+    const snappedPoint = snapDetailPosition(hitPoint, detailData, forceCellSnap);
+
     // Position at hit point, slightly raised so it's visible above grid
-    detailPreview.position.copy(hitPoint);
+    detailPreview.position.copy(snappedPoint);
     detailPreview.position.y += 0.15; // Just enough to avoid z-fighting
 
     // Add scale indicator box - THIS is the wireframe box showing the detail's size
@@ -2577,6 +2657,7 @@ function updateDetailPreview(detailData, hitPoint)
 
     // Center the box on the sphere
     scaleIndicator.position.y = (defaultScale[1] * MODEL_SCALE) / 2;
+    scaleIndicator.rotation.y = snapDetailRotation(rotation, detailData);
 
     detailPreview.add(scaleIndicator);
     scene.add(detailPreview);
@@ -2632,20 +2713,9 @@ async function onMouseUp(event)
                 // Detail mode placement
                 if (interactionMode === 'place' && selectedDetail && !draggedTile)
                 {
-                    const gridSnap = event.altKey;
-
-                    if (gridSnap)
-                    {
-                        // Snap to grid
-                        const cell = worldToCell(target.x, target.z);
-                        const worldPos = cellToWorld(cell.x + 0.5, cell.z + 0.5);
-                        await placeDetailMesh(selectedDetail, worldPos);
-                    }
-                    else
-                    {
-                        // Free placement at exact position
-                        await placeDetailMesh(selectedDetail, target);
-                    }
+                    const snappedPos = snapDetailPosition(target, selectedDetail, event.altKey);
+                    const snappedRotation = snapDetailRotation(placementRotation, selectedDetail);
+                    await placeDetailMesh(selectedDetail, snappedPos, snappedRotation);
                 }
             }
         }
@@ -3069,6 +3139,7 @@ function selectTile(tileMesh)
         transformControls.attach(tileMesh);
         transformControls.visible = true;
         setTransformMode('translate');
+        applyDetailTransformSnap();
     }
 
     // Force update the mode indicator
@@ -3362,7 +3433,9 @@ async function prepareDetailMesh(worldX, worldZ, layer, detailData, rotation = 0
                 visualOffset: detailData.visualOffset || [0, 0, 0],
                 minScale: detailData.minScale || [0.1, 0.1, 0.1],
                 maxScale: detailData.maxScale || [5, 5, 5],
-                defaultScale: detailData.defaultScale || [1, 1, 1]
+                defaultScale: detailData.defaultScale || [1, 1, 1],
+                positionSnapping: detailData.positionSnapping || 0,
+                angleSnapping: detailData.angleSnapping || 0
             },
             position:
             {
@@ -3477,7 +3550,9 @@ async function placeDetailMesh(detailData, position, rotation = 0, scale = null)
                 visualOffset: detailData.visualOffset || [0, 0, 0],
                 minScale: detailData.minScale || [0.1, 0.1, 0.1],
                 maxScale: detailData.maxScale || [5, 5, 5],
-                defaultScale: detailData.defaultScale || [1, 1, 1]
+                defaultScale: detailData.defaultScale || [1, 1, 1],
+                positionSnapping: detailData.positionSnapping || 0,
+                angleSnapping: detailData.angleSnapping || 0
             },
             position:
             {
@@ -3819,7 +3894,8 @@ function updateTileGrid()
                 grid.querySelectorAll('.tile-item').forEach(el => el.classList.remove('active'));
                 div.classList.add('active');
 
-                // Set interaction mode to place tiles
+                // Switch to tile mode and place tiles
+                switchEditorMode('tiles');
                 setInteractionMode('place');
             };
 
@@ -3914,7 +3990,8 @@ function updateTileGrid()
                 grid.querySelectorAll('.tile-item').forEach(el => el.classList.remove('active'));
                 div.classList.add('active');
 
-                // Set interaction mode to place details
+                // Switch to detail mode and place details
+                switchEditorMode('details');
                 setInteractionMode('place');
             };
 
@@ -4026,7 +4103,7 @@ function setupDragAndDrop()
                 {
                     switchEditorMode('details');
                 }
-                updateDetailPreview(draggedTile, hitPoint);
+                updateDetailPreview(draggedTile, hitPoint, e.altKey, placementRotation);
             }
             else
             {
@@ -4068,20 +4145,9 @@ function setupDragAndDrop()
                 // Auto-switch to detail mode
                 switchEditorMode('details');
 
-                const gridSnap = e.altKey;
-
-                if (gridSnap)
-                {
-                    // Snap to grid
-                    const cell = worldToCell(hitPoint.x, hitPoint.z);
-                    const worldPos = cellToWorld(cell.x + 0.5, cell.z + 0.5);
-                    await placeDetailMesh(draggedTile, worldPos, 0, draggedTile.defaultScale);
-                }
-                else
-                {
-                    // Free placement at exact position
-                    await placeDetailMesh(draggedTile, hitPoint, 0, draggedTile.defaultScale);
-                }
+                const snappedPos = snapDetailPosition(hitPoint, draggedTile, e.altKey);
+                const snappedRotation = snapDetailRotation(placementRotation, draggedTile);
+                await placeDetailMesh(draggedTile, snappedPos, snappedRotation, draggedTile.defaultScale);
             }
             else
             {
@@ -5791,6 +5857,16 @@ function switchPackType(type)
         activeDetailPackId = Array.from(detailPacks.keys())[0];
     }
 
+    // Keep editor mode in sync with selected asset browser type.
+    if (type === 'details')
+    {
+        switchEditorMode('details');
+    }
+    else
+    {
+        switchEditorMode('tiles');
+    }
+
     // Update pack list
     updatePackList();
 
@@ -5869,6 +5945,7 @@ function loadDetailPack(detailPack)
     detailPack.details.forEach((detail, index) =>
     {
         const uniqueId = detail.id ? `${packId}:${detail.id}` : `${packId}:detail_${index}`;
+        const legacyGridSnap = detail.snapping === 'grid' ? CELL_SIZE : 0;
         const detailObj = {
             ...detail,
             packId,
@@ -5878,7 +5955,10 @@ function loadDetailPack(detailPack)
             // Ensure scale properties exist
             defaultScale: detail.defaultScale || [1, 1, 1],
             minScale: detail.minScale || [0.1, 0.1, 0.1],
-            maxScale: detail.maxScale || [5, 5, 5]
+            maxScale: detail.maxScale || [5, 5, 5],
+            // New per-detail snapping controls
+            positionSnapping: detail.positionSnapping ?? legacyGridSnap,
+            angleSnapping: detail.angleSnapping ?? 0
         };
 
         details.set(uniqueId, detailObj);
@@ -5975,7 +6055,8 @@ function updateDetailGrid()
             grid.querySelectorAll('.tile-item').forEach(el => el.classList.remove('active'));
             div.classList.add('active');
 
-            // Set interaction mode to detail placement
+            // Switch to detail mode and place details
+            switchEditorMode('details');
             setInteractionMode('place');
         };
 
