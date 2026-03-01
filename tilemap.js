@@ -2364,6 +2364,12 @@ function onMouseDown(event)
                 interactionMode === 'rotate' || interactionMode === 'scale' ||
                 interactionMode === 'erase')
             {
+                // If the transform gizmo is visible, prioritize it over selecting
+                // other details behind the handles.
+                if (interactionMode !== 'erase' && isPointerOverTransformGizmo())
+                {
+                    return;
+                }
 
                 // Raycast details specifically
                 const detailArray = Array.from(detailMeshes);
@@ -3045,6 +3051,19 @@ function getRootTileMesh(intersectedObject)
 
     // If we didn't find a valid root, return the original object
     return intersectedObject;
+}
+
+
+// Returns true if the pointer is currently over transform gizmo handles.
+function isPointerOverTransformGizmo()
+{
+    if (!transformControls || !transformControls.visible || !transformControls.object)
+    {
+        return false;
+    }
+
+    const gizmoHits = raycaster.intersectObject(transformControls, true);
+    return gizmoHits.length > 0;
 }
 
 // Raycasts the scene and returns tile/detail intersections under the cursor.
