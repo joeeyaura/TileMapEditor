@@ -3054,7 +3054,7 @@ function getRootTileMesh(intersectedObject)
 }
 
 
-// Returns true if the pointer is currently over transform gizmo handles.
+// Returns true only when the pointer is over an active transform gizmo axis handle.
 function isPointerOverTransformGizmo()
 {
     if (!transformControls || !transformControls.visible || !transformControls.object)
@@ -3062,8 +3062,9 @@ function isPointerOverTransformGizmo()
         return false;
     }
 
-    const gizmoHits = raycaster.intersectObject(transformControls, true);
-    return gizmoHits.length > 0;
+    // TransformControls updates `axis` on hover; using it avoids false positives
+    // from helper/plane children that can occupy large screen regions.
+    return transformControls.axis != null;
 }
 
 // Raycasts the scene and returns tile/detail intersections under the cursor.
