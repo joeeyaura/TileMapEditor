@@ -1469,29 +1469,7 @@ function setTransformMode(mode)
     if (transformControls)
     {
         transformControls.setMode(mode);
-
-        // Update snap settings
-        if (snapEnabled)
-        {
-            if (mode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (mode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (mode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
+        applyTransformSnapSettings();
     }
 
     // Update interaction mode
@@ -1508,27 +1486,7 @@ function toggleSnap()
 
     if (transformControls)
     {
-        if (snapEnabled)
-        {
-            if (transformMode === 'translate')
-            {
-                transformControls.setTranslationSnap(transformSnapValues.translate);
-            }
-            else if (transformMode === 'rotate')
-            {
-                transformControls.setRotationSnap(transformSnapValues.rotate);
-            }
-            else if (transformMode === 'scale')
-            {
-                transformControls.setScaleSnap(transformSnapValues.scale);
-            }
-        }
-        else
-        {
-            transformControls.setTranslationSnap(null);
-            transformControls.setRotationSnap(null);
-            transformControls.setScaleSnap(null);
-        }
+        applyTransformSnapSettings();
     }
 
     // Update button
@@ -1616,39 +1574,6 @@ function updateLayerPanel()
 
     layerListEl.innerHTML = '';
 
-    const detailLi = document.createElement('li');
-    detailLi.className = 'layer-item detail-layer-item';
-
-    const detailIconButton = document.createElement('button');
-    detailIconButton.className = 'layer-action-button';
-    detailIconButton.innerHTML = '<i data-feather="layers"></i>';
-    detailIconButton.title = 'Dedicated Detail Layer';
-    detailIconButton.disabled = true;
-    detailLi.appendChild(detailIconButton);
-
-    const detailName = document.createElement('span');
-    detailName.className = 'layer-name';
-    detailName.innerText = 'Details Layer';
-    detailLi.appendChild(detailName);
-
-    const detailActions = document.createElement('div');
-    detailActions.className = 'layer-actions';
-
-    const detailVisibilityButton = document.createElement('button');
-    detailVisibilityButton.className = 'layer-action-button';
-    detailVisibilityButton.innerHTML = detailLayerVisible ? '<i data-feather="eye"></i>' : '<i data-feather="eye-off"></i>';
-    detailVisibilityButton.title = detailLayerVisible ? 'Hide details' : 'Show details';
-    detailVisibilityButton.onclick = (e) =>
-    {
-        e.stopPropagation();
-        toggleDetailLayerVisibility(!detailLayerVisible);
-        updateLayerPanel();
-    };
-    detailActions.appendChild(detailVisibilityButton);
-
-    detailLi.appendChild(detailActions);
-    layerListEl.appendChild(detailLi);
-
     const sortedKeys = Array.from(layerMap.keys()).sort((a, b) => a - b);
 
     sortedKeys.forEach(num =>
@@ -1658,21 +1583,23 @@ function updateLayerPanel()
         li.className = 'layer-item' + (num === currentLayer ? ' active' : '');
         li.dataset.layerNum = num;
 
+        // Layer selection (existing)
         const selectButton = document.createElement('button');
         selectButton.className = 'layer-action-button';
-        selectButton.innerHTML = num === currentLayer ? '<i data-feather="check-circle" style="color: #4fc3f7;"></i>' : '<i data-feather="circle"></i>';
+        selectButton.innerHTML = num === currentLayer ? 
+            '<i data-feather="check-circle" style="color: #4fc3f7;"></i>' : 
+            '<i data-feather="circle"></i>';
         selectButton.onclick = (e) =>
         {
             e.stopPropagation();
             currentLayer = num;
             updateLayerPanel();
             updateModeIndicator();
-
-            // Move grid to the new layer height
             updateGridPosition();
         };
         li.appendChild(selectButton);
 
+        // Layer name (existing)
         const nameSpan = document.createElement('span');
         nameSpan.className = 'layer-name';
         nameSpan.innerText = data.name;
@@ -1687,12 +1614,39 @@ function updateLayerPanel()
         };
         li.appendChild(nameSpan);
 
+        // Actions container - now with 3 buttons
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'layer-actions';
 
+        // DETAIL VISIBILITY TOGGLE (NEW - compact eye with "D" indicator)
+        const detailVisibleKey = `detail_visible_${num}`;
+        const isDetailVisible = data.detailVisible !== false; // Default to true
+        
+        const detailVisibilityButton = document.createElement('button');
+        detailVisibilityButton.className = 'layer-action-button detail-toggle';
+        detailVisibilityButton.innerHTML = isDetailVisible ? 
+            '<i data-feather="eye"></i><span class="detail-badge">D</span>' : 
+            '<i data-feather="eye-off"></i><span class="detail-badge">D</span>';
+        detailVisibilityButton.title = isDetailVisible ? 
+            `Hide details on Layer ${num}` : 
+            `Show details on Layer ${num}`;
+        detailVisibilityButton.onclick = (e) =>
+        {
+            e.stopPropagation();
+            toggleDetailLayerVisibilityForLayer(num, !isDetailVisible);
+            updateLayerPanel();
+        };
+        actionsDiv.appendChild(detailVisibilityButton);
+
+        // Tile visibility toggle (existing - now with "T" badge for clarity)
         const visibilityButton = document.createElement('button');
-        visibilityButton.className = 'layer-action-button';
-        visibilityButton.innerHTML = data.visible !== false ? '<i data-feather="eye"></i>' : '<i data-feather="eye-off"></i>';
+        visibilityButton.className = 'layer-action-button tile-toggle';
+        visibilityButton.innerHTML = data.visible !== false ? 
+            '<i data-feather="eye"></i><span class="tile-badge">T</span>' : 
+            '<i data-feather="eye-off"></i><span class="tile-badge">T</span>';
+        visibilityButton.title = data.visible !== false ? 
+            `Hide tiles on Layer ${num}` : 
+            `Show tiles on Layer ${num}`;
         visibilityButton.onclick = (e) =>
         {
             e.stopPropagation();
@@ -1702,9 +1656,12 @@ function updateLayerPanel()
         };
         actionsDiv.appendChild(visibilityButton);
 
+        // Lock toggle (existing)
         const lockButton = document.createElement('button');
         lockButton.className = 'layer-action-button' + (data.locked ? ' locked' : '');
-        lockButton.innerHTML = data.locked ? '<i data-feather="lock"></i>' : '<i data-feather="unlock"></i>';
+        lockButton.innerHTML = data.locked ? 
+            '<i data-feather="lock"></i>' : 
+            '<i data-feather="unlock"></i>';
         lockButton.onclick = (e) =>
         {
             e.stopPropagation();
@@ -1721,6 +1678,31 @@ function updateLayerPanel()
 
     const delBtn = document.getElementById('deleteLayer');
     if (delBtn) delBtn.disabled = layerMap.size <= 1;
+}
+function toggleDetailLayerVisibilityForLayer(layerNum, isVisible)
+{
+    const layerData = layerMap.get(layerNum);
+    if (layerData) {
+        layerData.detailVisible = isVisible;
+    }
+    
+    detailMeshes.forEach(mesh =>
+    {
+        if (mesh && mesh.userData?.position?.layer === layerNum)
+        {
+            // Combine with global detail visibility
+            mesh.visible = isVisible && detailLayerVisible;
+        }
+    });
+    
+    // Update selection if needed
+    if (selectedPlacedTile && 
+        selectedPlacedTile.userData?.isDetail && 
+        selectedPlacedTile.userData?.position?.layer === layerNum && 
+        !isVisible)
+    {
+        deselectTile();
+    }
 }
 
 // Updates grid position.
@@ -1867,10 +1849,16 @@ function toggleLayerVisibility(layerNum, isVisible)
 function toggleDetailLayerVisibility(isVisible)
 {
     detailLayerVisible = isVisible;
-
+    
     detailMeshes.forEach(mesh =>
     {
-        if (mesh) mesh.visible = isVisible;
+        if (mesh)
+        {
+            const layer = mesh.userData?.position?.layer;
+            const layerData = layerMap.get(layer);
+            // Only show if both global and per-layer are true
+            mesh.visible = isVisible && (layerData?.detailVisible !== false);
+        }
     });
 
     if (selectedPlacedTile && selectedPlacedTile.userData?.isDetail && !isVisible)
@@ -1878,7 +1866,6 @@ function toggleDetailLayerVisibility(isVisible)
         deselectTile();
     }
 }
-
 // --- Camera & Walk Mode ---
 
 // Toggles first-person walk mode on or off.
@@ -2024,6 +2011,90 @@ function getSnappedTileRotationRadians(rotationValue)
     return normalizeTileQuarterTurns(rotationValue) * (Math.PI / 2);
 }
 
+// Normalizes serialized detail rotation values into an XYZ Euler.
+function normalizeDetailRotationEuler(rotationValue, fallbackY = 0)
+{
+    if (Array.isArray(rotationValue) && rotationValue.length >= 3)
+    {
+        return new THREE.Euler(
+            Number.isFinite(rotationValue[0]) ? rotationValue[0] : 0,
+            Number.isFinite(rotationValue[1]) ? rotationValue[1] : fallbackY,
+            Number.isFinite(rotationValue[2]) ? rotationValue[2] : 0
+        );
+    }
+
+    if (rotationValue && typeof rotationValue === 'object')
+    {
+        return new THREE.Euler(
+            Number.isFinite(rotationValue.x) ? rotationValue.x : 0,
+            Number.isFinite(rotationValue.y) ? rotationValue.y : fallbackY,
+            Number.isFinite(rotationValue.z) ? rotationValue.z : 0
+        );
+    }
+
+    const y = Number.isFinite(rotationValue) ? rotationValue : fallbackY;
+    return new THREE.Euler(0, y, 0);
+}
+
+// Resolves per-detail angle snap (degrees in JSON) into radians.
+function getDetailRotationSnapRadians(detailData)
+{
+    if (!detailData) return transformSnapValues.rotate;
+
+    const snapping = detailData.snapping;
+    if (snapping === 'none' || snapping === false)
+    {
+        return null;
+    }
+
+    const candidateDegrees = [
+        detailData.angleSnap,
+        detailData.angleSnaps,
+        detailData.rotationSnap,
+        detailData.rotationSnapDegrees,
+        detailData.snapAngle,
+        typeof snapping === 'number' ? snapping : null,
+        typeof snapping === 'string' ? parseFloat(snapping) : null,
+        (snapping && typeof snapping === 'object') ? (snapping.angle ?? snapping.rotation ?? snapping.degrees) : null
+    ];
+
+    const angleDegrees = candidateDegrees.find(v => Number.isFinite(v) && v > 0);
+    if (!Number.isFinite(angleDegrees))
+    {
+        return transformSnapValues.rotate;
+    }
+
+    return THREE.MathUtils.degToRad(angleDegrees);
+}
+
+// Applies active transform snap values, including per-detail rotation snapping.
+function applyTransformSnapSettings()
+{
+    if (!transformControls) return;
+
+    if (!snapEnabled)
+    {
+        transformControls.setTranslationSnap(null);
+        transformControls.setRotationSnap(null);
+        transformControls.setScaleSnap(null);
+        return;
+    }
+
+    if (transformMode === 'translate')
+    {
+        transformControls.setTranslationSnap(transformSnapValues.translate);
+    }
+    else if (transformMode === 'rotate')
+    {
+        const detailData = transformControls.object?.userData?.isDetail ? transformControls.object.userData.tileData : null;
+        transformControls.setRotationSnap(getDetailRotationSnapRadians(detailData));
+    }
+    else if (transformMode === 'scale')
+    {
+        transformControls.setScaleSnap(transformSnapValues.scale);
+    }
+}
+
 // Builds a complete layout payload for autosave and manual save.
 function buildLayoutData()
 {
@@ -2082,7 +2153,12 @@ function buildLayoutData()
                 y: mesh.position.y,
                 z: mesh.position.z
             },
-            rotation: mesh.rotation.y,
+            rotation:
+            {
+                x: mesh.rotation.x,
+                y: mesh.rotation.y,
+                z: mesh.rotation.z
+            },
             scale: [scale.x, scale.y, scale.z],
             layer: mesh.userData.position.layer
         });
@@ -2317,6 +2393,12 @@ function onMouseDown(event)
                 interactionMode === 'rotate' || interactionMode === 'scale' ||
                 interactionMode === 'erase')
             {
+                // If the transform gizmo is visible, prioritize it over selecting
+                // other details behind the handles.
+                if (interactionMode !== 'erase' && isPointerOverTransformGizmo())
+                {
+                    return;
+                }
 
                 // Raycast details specifically
                 const detailArray = Array.from(detailMeshes);
@@ -3000,6 +3082,20 @@ function getRootTileMesh(intersectedObject)
     return intersectedObject;
 }
 
+
+// Returns true only when the pointer is over an active transform gizmo axis handle.
+function isPointerOverTransformGizmo()
+{
+    if (!transformControls || !transformControls.visible || !transformControls.object)
+    {
+        return false;
+    }
+
+    // TransformControls updates `axis` on hover; using it avoids false positives
+    // from helper/plane children that can occupy large screen regions.
+    return transformControls.axis != null;
+}
+
 // Raycasts the scene and returns tile/detail intersections under the cursor.
 function raycastTiles()
 {
@@ -3068,6 +3164,7 @@ function selectTile(tileMesh)
     {
         transformControls.attach(tileMesh);
         transformControls.visible = true;
+        applyTransformSnapSettings();
         setTransformMode('translate');
     }
 
@@ -4357,13 +4454,15 @@ async function loadLayout(layoutData, skipConfirm = false)
                         savedDetail.position.z
                     );
 
+                    const detailRotation = normalizeDetailRotationEuler(savedDetail.rotation, savedDetail.rotationY || 0);
+
                     // Create detail mesh with the scale multiplier
                     const mesh = await prepareDetailMesh(
                         position.x,
                         position.z,
                         savedDetail.layer || currentLayer,
                         detailDef,
-                        savedDetail.rotation || 0,
+                        detailRotation.y,
                         scaleMultiplier // Pass the multiplier, not the actual scale
                     );
 
@@ -4371,6 +4470,8 @@ async function loadLayout(layoutData, skipConfirm = false)
                     {
                         // Set exact Y position from saved data
                         mesh.position.y = savedDetail.position.y;
+                        mesh.rotation.copy(detailRotation);
+                        mesh.userData.rotation = detailRotation.clone();
 
                         // CRITICAL FIX: Ensure scale multiplier is stored correctly
                         mesh.userData.scale = new THREE.Vector3(
@@ -4695,27 +4796,71 @@ async function exportAsMesh()
         );
 
         const processedMeshes = new Set();
-        let objVertices = [];
-        let objNormals = [];
-        let objUVs = [];
-        let objFaces = [];
+        const objVertices = [];
+        const objNormals = [];
+        const objUVs = [];
+        const objFaces = [];
+
         let currentVertexIndex = 1;
         let currentNormalIndex = 1;
         let currentUVIndex = 1;
 
-        // Material library
         const materials = new Map();
         let materialIndex = 0;
 
+        const registerMaterial = (sourceMaterial, fallbackColor = '#888888') =>
+        {
+            const colorHex = sourceMaterial?.color ? sourceMaterial.color.getHexString() : new THREE.Color(fallbackColor).getHexString();
+            const opacity = sourceMaterial && sourceMaterial.opacity !== undefined ? sourceMaterial.opacity : 1;
+            const transparent = sourceMaterial?.transparent ? 1 : 0;
+            const side = sourceMaterial?.side ?? 0;
+            const mapSrc = sourceMaterial?.map?.image?.currentSrc || sourceMaterial?.map?.image?.src || '';
 
-        for (const [key, rootMesh] of placedTiles)
+            const materialKey = JSON.stringify({
+                name: sourceMaterial?.name || '',
+                colorHex,
+                opacity,
+                transparent,
+                side,
+                mapSrc
+            });
+
+            if (!materials.has(materialKey))
+            {
+                materialIndex++;
+                materials.set(materialKey,
+                {
+                    name: sourceMaterial?.name || `material_${materialIndex}`,
+                    color: `#${colorHex}`,
+                    opacity,
+                    transparent: Boolean(transparent),
+                    mapSrc
+                });
+            }
+
+            return materials.get(materialKey).name;
+        };
+
+        const formatFaceVertex = (vIndex, vtIndex, vnIndex) =>
+        {
+            if (vtIndex && vnIndex) return `${vIndex}/${vtIndex}/${vnIndex}`;
+            if (vtIndex) return `${vIndex}/${vtIndex}`;
+            if (vnIndex) return `${vIndex}//${vnIndex}`;
+            return `${vIndex}`;
+        };
+
+        for (const [cellKey, rootMesh] of placedTiles)
         {
             if (processedMeshes.has(rootMesh.uuid)) continue;
             if (rootMesh.userData.isDetail ? !detailLayerVisible : !visibleLayers.has(rootMesh.userData.position.layer)) continue;
 
             processedMeshes.add(rootMesh.uuid);
 
-            // Traverse children to find meshes with geometry
+            const tileObjectName = rootMesh.userData.tileData?.id
+                ? `${rootMesh.userData.tileData.id}_${cellKey}`
+                : `tile_${cellKey}`;
+            objFaces.push(`g ${tileObjectName.replace(/\s+/g, '_')}`);
+
             const meshes = [];
             rootMesh.traverse((child) =>
             {
@@ -4727,48 +4872,33 @@ async function exportAsMesh()
 
             if (meshes.length === 0)
             {
-                console.warn(`No geometry found for tile: ${key}`);
+                console.warn(`No geometry found for tile: ${cellKey}`);
                 continue;
             }
 
-            // Create material
-            const tileId = rootMesh.userData.tileData.id;
-            if (!materials.has(tileId))
-            {
-                materialIndex++;
-                const color = rootMesh.userData.tileData.color || '#888888';
-                materials.set(tileId,
-                {
-                    name: `material_${materialIndex}`,
-                    color: color
-                });
-            }
-            const matName = materials.get(tileId).name;
-
-            // Process each mesh part
-            meshes.forEach(mesh =>
+            meshes.forEach((mesh) =>
             {
                 const geometry = mesh.geometry;
                 const positions = geometry.attributes.position.array;
                 const normals = geometry.attributes.normal?.array;
                 const uvs = geometry.attributes.uv?.array;
                 const index = geometry.index?.array;
+                const vertexCount = positions.length / 3;
 
-                // Apply world transform
+                if (vertexCount === 0) return;
+
                 mesh.updateMatrixWorld();
                 const matrixWorld = mesh.matrixWorld;
                 const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
 
-                // Transform vertices
                 for (let i = 0; i < positions.length; i += 3)
                 {
                     const vertex = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
                     vertex.applyMatrix4(matrixWorld);
-                    vertex.multiplyScalar(MODEL_SCALE_INVERSE); // Scale back up for export
+                    vertex.multiplyScalar(MODEL_SCALE_INVERSE);
                     objVertices.push(`v ${vertex.x.toFixed(6)} ${vertex.y.toFixed(6)} ${vertex.z.toFixed(6)}`);
                 }
 
-                // Transform normals
                 if (normals)
                 {
                     for (let i = 0; i < normals.length; i += 3)
@@ -4780,116 +4910,89 @@ async function exportAsMesh()
                 }
                 else
                 {
-                    // Generate flat normals for missing data
-                    for (let i = 0; i < positions.length; i += 9)
+                    for (let i = 0; i < vertexCount; i++)
                     {
-                        const v1 = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]).applyMatrix4(matrixWorld);
-                        const v2 = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]).applyMatrix4(matrixWorld);
-                        const v3 = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]).applyMatrix4(matrixWorld);
-
-                        const normal = new THREE.Vector3().crossVectors(
-                            new THREE.Vector3().subVectors(v2, v1),
-                            new THREE.Vector3().subVectors(v3, v1)
-                        ).normalize();
-
-                        // Add same normal for all 3 vertices of this triangle
-                        for (let j = 0; j < 3; j++)
-                        {
-                            objNormals.push(`vn ${normal.x.toFixed(6)} ${normal.y.toFixed(6)} ${normal.z.toFixed(6)}`);
-                        }
+                        objNormals.push('vn 0.000000 1.000000 0.000000');
                     }
                 }
 
-                // Copy UVs
                 if (uvs)
                 {
                     for (let i = 0; i < uvs.length; i += 2)
                     {
-                        objUVs.push(`vt ${uvs[i].toFixed(6)} ${uvs[i+1].toFixed(6)}`);
+                        objUVs.push(`vt ${uvs[i].toFixed(6)} ${uvs[i + 1].toFixed(6)}`);
                     }
                 }
                 else
                 {
-                    // Add dummy UVs if missing
-                    const vertexCount = positions.length / 3;
                     for (let i = 0; i < vertexCount; i++)
                     {
-                        objUVs.push(`vt 0.000000 0.000000`);
+                        objUVs.push('vt 0.000000 0.000000');
                     }
                 }
 
-                // Generate faces
-                objFaces.push(`g ${mesh.uuid}`);
-                objFaces.push(`usemtl ${matName}`);
+                const meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                const groups = geometry.groups && geometry.groups.length > 0
+                    ? geometry.groups
+                    : [{ start: 0, count: index ? index.length : vertexCount, materialIndex: 0 }];
 
-                const vertexCount = positions.length / 3;
-                if (index)
+                groups.forEach((group) =>
                 {
-                    // Indexed geometry - ensures we don't exceed vertex count
-                    for (let i = 0; i < index.length; i += 3)
-                    {
-                        const idx0 = index[i];
-                        const idx1 = index[i + 1];
-                        const idx2 = index[i + 2];
+                    const sourceMaterial = meshMaterials[group.materialIndex] || meshMaterials[0] || null;
+                    const fallbackColor = rootMesh.userData.tileData?.color || '#888888';
+                    const materialName = registerMaterial(sourceMaterial, fallbackColor);
+                    objFaces.push(`usemtl ${materialName}`);
 
-                        // Safety check
-                        if (idx0 >= vertexCount || idx1 >= vertexCount || idx2 >= vertexCount)
+                    if (index)
+                    {
+                        const groupEnd = Math.min(group.start + group.count, index.length);
+                        for (let i = group.start; i + 2 < groupEnd; i += 3)
                         {
-                            console.warn('Invalid index found, skipping face');
-                            continue;
+                            const idx0 = index[i];
+                            const idx1 = index[i + 1];
+                            const idx2 = index[i + 2];
+
+                            if (idx0 >= vertexCount || idx1 >= vertexCount || idx2 >= vertexCount) continue;
+
+                            const v1 = currentVertexIndex + idx0;
+                            const v2 = currentVertexIndex + idx1;
+                            const v3 = currentVertexIndex + idx2;
+                            const vt1 = currentUVIndex + idx0;
+                            const vt2 = currentUVIndex + idx1;
+                            const vt3 = currentUVIndex + idx2;
+                            const vn1 = currentNormalIndex + idx0;
+                            const vn2 = currentNormalIndex + idx1;
+                            const vn3 = currentNormalIndex + idx2;
+
+                            objFaces.push(`f ${formatFaceVertex(v1, vt1, vn1)} ${formatFaceVertex(v2, vt2, vn2)} ${formatFaceVertex(v3, vt3, vn3)}`);
                         }
-
-                        const v1 = currentVertexIndex + idx0;
-                        const v2 = currentVertexIndex + idx1;
-                        const v3 = currentVertexIndex + idx2;
-
-                        let face = `f ${v1}`;
-                        if (uvs) face += `/${currentUVIndex + idx0}`;
-                        if (normals) face += `/${currentNormalIndex + idx0}`;
-                        face += ` ${v2}`;
-                        if (uvs) face += `/${currentUVIndex + idx1}`;
-                        if (normals) face += `/${currentNormalIndex + idx1}`;
-                        face += ` ${v3}`;
-                        if (uvs) face += `/${currentUVIndex + idx2}`;
-                        if (normals) face += `/${currentNormalIndex + idx2}`;
-
-                        objFaces.push(face);
                     }
-                }
-                else
-                {
-                    // Non-indexed geometry
-                    for (let i = 0; i < vertexCount; i += 3)
+                    else
                     {
-                        const v1 = currentVertexIndex + i;
-                        const v2 = currentVertexIndex + i + 1;
-                        const v3 = currentVertexIndex + i + 2;
+                        const groupEnd = Math.min(group.start + group.count, vertexCount);
+                        for (let i = group.start; i + 2 < groupEnd; i += 3)
+                        {
+                            const v1 = currentVertexIndex + i;
+                            const v2 = currentVertexIndex + i + 1;
+                            const v3 = currentVertexIndex + i + 2;
+                            const vt1 = currentUVIndex + i;
+                            const vt2 = currentUVIndex + i + 1;
+                            const vt3 = currentUVIndex + i + 2;
+                            const vn1 = currentNormalIndex + i;
+                            const vn2 = currentNormalIndex + i + 1;
+                            const vn3 = currentNormalIndex + i + 2;
 
-                        // Safety check
-                        if (v2 >= (currentVertexIndex + vertexCount) || v3 >= (currentVertexIndex + vertexCount)) break;
-
-                        let face = `f ${v1}`;
-                        if (uvs) face += `/${currentUVIndex + i}`;
-                        if (normals) face += `/${currentNormalIndex + i}`;
-                        face += ` ${v2}`;
-                        if (uvs) face += `/${currentUVIndex + i + 1}`;
-                        if (normals) face += `/${currentNormalIndex + i + 1}`;
-                        face += ` ${v3}`;
-                        if (uvs) face += `/${currentUVIndex + i + 2}`;
-                        if (normals) face += `/${currentNormalIndex + i + 2}`;
-
-                        objFaces.push(face);
+                            objFaces.push(`f ${formatFaceVertex(v1, vt1, vn1)} ${formatFaceVertex(v2, vt2, vn2)} ${formatFaceVertex(v3, vt3, vn3)}`);
+                        }
                     }
-                }
+                });
 
-                // Update indices for next mesh
                 currentVertexIndex += vertexCount;
-                if (normals) currentNormalIndex += vertexCount;
-                if (uvs) currentUVIndex += vertexCount;
+                currentNormalIndex += vertexCount;
+                currentUVIndex += vertexCount;
             });
         }
 
-        // Build OBJ content (same as before)
         let objContent = `# Tile Map Export\n`;
         objContent += `# ${processedMeshes.size} tiles\n\n`;
         objContent += `mtllib tilemap.mtl\n\n`;
@@ -4907,19 +5010,27 @@ async function exportAsMesh()
 
         objContent += objFaces.join('\n');
 
-        // Build MTL content
         let mtlContent = `# Tile Map Materials\n\n`;
-        for (const [tileId, mat] of materials)
+        for (const [, mat] of materials)
         {
             const color = new THREE.Color(mat.color);
             mtlContent += `newmtl ${mat.name}\n`;
             mtlContent += `Kd ${color.r.toFixed(3)} ${color.g.toFixed(3)} ${color.b.toFixed(3)}\n`;
             mtlContent += `Ka ${(color.r * 0.2).toFixed(3)} ${(color.g * 0.2).toFixed(3)} ${(color.b * 0.2).toFixed(3)}\n`;
             mtlContent += `Ks 0.000 0.000 0.000\n`;
-            mtlContent += `Ns 10.0\n\n`;
+            mtlContent += `Ns 10.0\n`;
+            if (mat.transparent)
+            {
+                mtlContent += `d ${mat.opacity.toFixed(3)}\n`;
+            }
+            if (mat.mapSrc)
+            {
+                const textureName = mat.mapSrc.split('/').pop();
+                mtlContent += `map_Kd ${textureName}\n`;
+            }
+            mtlContent += `\n`;
         }
 
-        // Download files
         downloadFile(objContent, `tilemap_${Date.now()}.obj`, 'text/plain');
         downloadFile(mtlContent, `tilemap_${Date.now()}.mtl`, 'text/plain');
 
